@@ -1,0 +1,25 @@
+# Uploads (user content)
+uploads/demands/*
+uploads/notices/*
+uploads/avatars/*
+!uploads/demands/.gitkeep
+!uploads/notices/.gitkeep
+!uploads/avatars/.gitkeep
+
+# Config (contains DB credentials)
+config.php
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+error_log
