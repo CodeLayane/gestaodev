@@ -1,4 +1,3 @@
-
 // Inject report checkbox styles
 (function(){var s=document.createElement('style');s.textContent='/* ===== REPORT CHECKBOX FILTERS ===== */.rep-filter-section{margin-bottom:6px}.rep-filter-section>label{font-size:10px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px}.rep-cb-group{display:flex;flex-wrap:wrap;gap:4px}.rep-cb-item{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:var(--bg2);border:1px solid var(--brd);cursor:pointer;font-size:11px;color:var(--t2);transition:all .2s;user-select:none}.rep-cb-item:hover{border-color:var(--acc);background:var(--accg)}.rep-cb-item input[type="checkbox"]{width:14px;height:14px;accent-color:var(--acc);cursor:pointer;margin:0}.rep-cb-item.active{background:var(--accg);border-color:var(--acc);color:var(--acc);font-weight:600}.rep-filter-panel{background:var(--bg1);border:1px solid var(--brd);border-radius:10px;padding:14px;margin-bottom:16px}.rep-filter-panel .rep-filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:768px){.rep-filter-panel .rep-filter-grid{grid-template-columns:1fr}}.rep-filter-panel .filter-dates{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--brd)}.rep-filter-panel .filter-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)}.sla-info-box{background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:10px 14px;margin-top:10px;font-size:11px;color:var(--t3);line-height:1.5}.sla-info-box strong{color:var(--t2);font-weight:600}.chart-toggle-panel{background:var(--bg1);border:1px solid var(--brd);border-radius:10px;padding:12px 14px;margin-bottom:16px}.chart-toggle-panel>label{font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:8px}.chart-toggle-grid{display:flex;flex-wrap:wrap;gap:6px}.chart-toggle-item{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--brd);cursor:pointer;font-size:11px;color:var(--t2);transition:all .2s;user-select:none}.chart-toggle-item:hover{border-color:var(--acc)}.chart-toggle-item input[type="checkbox"]{width:14px;height:14px;accent-color:var(--acc);cursor:pointer;margin:0}.chart-toggle-item.active{background:var(--accg);border-color:var(--acc);color:var(--acc)}.rep-select-all{font-size:10px;color:var(--acc);cursor:pointer;margin-left:8px;text-decoration:underline}.rep-select-all:hover{color:var(--t1)}';document.head.appendChild(s)})();
 const MY_ROLES=(ME.role||'').split(',').map(r=>r.trim());
@@ -605,31 +604,9 @@ async function reviewSol(status){const id=document.getElementById('sr-id').value
 // ===== COMPREHENSIVE REPORTS =====
 function loadScriptOnce(url){return new Promise((ok,fail)=>{if(document.querySelector('script[src="'+url+'"]'))return ok();const s=document.createElement('script');s.src=url;s.onload=ok;s.onerror=fail;document.head.appendChild(s)})}
 
-
-
-;
-  Object.keys(chartMap).forEach(function(key){
-    var cId=chartMap[key];
-    var cards=document.querySelectorAll('.chart-card[data-chart="'+key+'"]');
-    cards.forEach(function(card){
-      if(checked.length===0||checked.indexOf(key)>=0){card.style.display=''}
-      else{card.style.display='none'}
-    });
-    // Also try by canvas id
-    var canvas=document.getElementById(cId);
-    if(canvas){
-      var card=canvas.closest('.chart-card');
-      if(card&&!card.hasAttribute('data-chart')){
-        if(checked.length===0||checked.indexOf(key)>=0){card.style.display=''}
-        else{card.style.display='none'}
-      }
-    }
-  });
-
-
-
 // ===== REPORT FILTER STATE =====
-var _repState={systems:[],devs:[],priorities:[],sprints:[],charts:['status','timeline','prod','avgdays','priority','system','sla','workload','flow','cancel']};
+var _repState={systems:[],devs:[],priorities:[],sprints:[],charts:['status','timeline','prod','avgdays','priority','system','sla','workload','flow','cancel','bydev','bysys','proddetail']};
+var _repNeedsReload=false;
 function repGetState(){
   var el;
   el=document.querySelectorAll('input[name="rep-system"]:checked');if(el.length)_repState.systems=Array.from(el).map(function(e){return e.value});
@@ -637,7 +614,7 @@ function repGetState(){
   el=document.querySelectorAll('input[name="rep-priority"]:checked');if(el.length)_repState.priorities=Array.from(el).map(function(e){return e.value});
   el=document.querySelectorAll('input[name="rep-sprint"]:checked');if(el.length)_repState.sprints=Array.from(el).map(function(e){return e.value});
   el=document.querySelectorAll('input[name="rep-charts"]:checked');
-  _repState.charts=el.length?Array.from(el).map(function(e){return e.value}):['status','timeline','prod','avgdays','priority','system','sla','workload','flow','cancel'];
+  _repState.charts=el.length?Array.from(el).map(function(e){return e.value}):['status','timeline','prod','avgdays','priority','system','sla','workload','flow','cancel','syshealth','bydev','bysys','proddetail'];
 }
 function repToggle(cb){
   repGetState();
@@ -647,8 +624,17 @@ function repToggle(cb){
   if(nm==='rep-dev'){if(cb.checked){if(_repState.devs.indexOf(val)<0)_repState.devs.push(val)}else{_repState.devs=_repState.devs.filter(function(v){return v!==val})}}
   if(nm==='rep-priority'){if(cb.checked){if(_repState.priorities.indexOf(val)<0)_repState.priorities.push(val)}else{_repState.priorities=_repState.priorities.filter(function(v){return v!==val})}}
   if(nm==='rep-sprint'){if(cb.checked){if(_repState.sprints.indexOf(val)<0)_repState.sprints.push(val)}else{_repState.sprints=_repState.sprints.filter(function(v){return v!==val})}}
-  if(nm==='rep-charts'){if(cb.checked){if(_repState.charts.indexOf(val)<0)_repState.charts.push(val)}else{_repState.charts=_repState.charts.filter(function(v){return v!==val})}}
-  if(nm!=='rep-charts'){loadReports()}else{applyChartVisibility()}
+  if(nm==='rep-charts'){
+    if(cb.checked){if(_repState.charts.indexOf(val)<0)_repState.charts.push(val)}else{_repState.charts=_repState.charts.filter(function(v){return v!==val})}
+    // Update visual state
+    var item=cb.closest('.rep-cb-item');
+    if(item){
+      if(cb.checked){item.classList.add('active')}else{item.classList.remove('active')}
+    }
+    applyChartVisibility();
+  }else{
+    loadReports();
+  }
 }
 function repSelectAll(name){
   var boxes=document.querySelectorAll('input[name="'+name+'"]');
@@ -664,18 +650,173 @@ function repSelectAll(name){
 function chartSelectAll(){
   var boxes=document.querySelectorAll('input[name="rep-charts"]');
   var allChecked=Array.from(boxes).every(function(b){return b.checked});
-  boxes.forEach(function(b){b.checked=!allChecked;var item=b.closest('.chart-toggle-item');if(item)item.classList.toggle('active',!allChecked)});
+  boxes.forEach(function(b){
+    b.checked=!allChecked;
+    var item=b.closest('.rep-cb-item');
+    if(item)item.classList.toggle('active',!allChecked)
+  });
   _repState.charts=!allChecked?Array.from(boxes).map(function(b){return b.value}):[];
   applyChartVisibility();
 }
 function applyChartVisibility(){
   var checked=_repState.charts;
-  var map={'status':'ch-pie','timeline':'ch-timeline','prod':'ch-prod','avgdays':'ch-avgdays','priority':'ch-priority','system':'ch-system','sla':'ch-sla','workload':'ch-workload','flow':'ch-flow','cancel':'ch-cancel'};
-  Object.keys(map).forEach(function(key){
-    var c=document.getElementById(map[key]);
-    if(c){var card=c.closest('.chart-card');if(card){card.style.display=(checked.length===0||checked.indexOf(key)>=0)?'':'none'}}
+  
+  // Find all elements with data-chart attribute
+  var allChartElements=document.querySelectorAll('[data-chart]');
+  
+  allChartElements.forEach(function(element){
+    var key=element.getAttribute('data-chart');
+    if(key){
+      // If no charts selected, show all. Otherwise, show only selected ones
+      var shouldShow=checked.length===0||checked.indexOf(key)>=0;
+      element.style.display=shouldShow?'':'none';
+    }
   });
 }
+
+function toggleRepAccordion(header){
+  var accordion=header.parentElement;
+  var content=accordion.querySelector('.rep-acc-content');
+  var icon=header.querySelector('.acc-icon');
+  var isOpen=accordion.classList.contains('open');
+  
+  if(isOpen){
+    accordion.classList.remove('open');
+    content.style.maxHeight='0px';
+    icon.style.transform='rotate(0deg)';
+  }else{
+    accordion.classList.add('open');
+    content.style.maxHeight=content.scrollHeight+'px';
+    icon.style.transform='rotate(90deg)';
+  }
+}
+
+function repSyncSelect(select,stateKey){
+  var selected=Array.from(select.selectedOptions).filter(o=>o.value).map(o=>o.value);
+  _repState[stateKey]=selected;
+  loadReports();
+}
+
+function toggleRepDropdown(btn){
+  var dropdown=btn.parentElement;
+  var panel=dropdown.querySelector('.rep-dd-panel');
+  var allDropdowns=document.querySelectorAll('.rep-custom-dropdown');
+  var wasOpen=dropdown.classList.contains('open');
+  
+  // Close all dropdowns
+  allDropdowns.forEach(function(dd){
+    dd.classList.remove('open');
+    var p=dd.querySelector('.rep-dd-panel');
+    if(p)p.style.display='none';
+  });
+  
+  // Toggle this one
+  if(!wasOpen){
+    dropdown.classList.add('open');
+    panel.style.display='block';
+  }
+}
+
+function repDDChange(checkbox){
+  var type=checkbox.dataset.type;
+  var value=checkbox.dataset.value;
+  var label=checkbox.closest('.rep-dd-opt');
+  
+  if(checkbox.checked){
+    label.classList.add('active');
+    if(_repState[type].indexOf(value)<0){
+      _repState[type].push(value);
+    }
+  }else{
+    label.classList.remove('active');
+    _repState[type]=_repState[type].filter(function(v){return v!==value});
+  }
+  
+  // Update button counter without reloading
+  updateDropdownCounter(checkbox.closest('.rep-custom-dropdown'),type);
+  _repNeedsReload=true;
+}
+
+function updateDropdownCounter(dropdown,type){
+  var btn=dropdown.querySelector('.rep-dd-btn');
+  var count=_repState[type].length;
+  var label=btn.textContent.split('(')[0].trim();
+  btn.innerHTML=label+(count?' ('+count+')':'')+' <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
+}
+
+function repDDToggleAll(checkbox,type){
+  var dropdown=checkbox.closest('.rep-custom-dropdown');
+  var opts=dropdown.querySelectorAll('input[data-type="'+type+'"]');
+  
+  opts.forEach(function(cb){
+    cb.checked=checkbox.checked;
+    var label=cb.closest('.rep-dd-opt');
+    if(checkbox.checked){
+      label.classList.add('active');
+    }else{
+      label.classList.remove('active');
+    }
+  });
+  
+  if(checkbox.checked){
+    _repState[type]=Array.from(opts).map(function(cb){return cb.dataset.value});
+  }else{
+    _repState[type]=[];
+  }
+  
+  // Update button counter without reloading
+  updateDropdownCounter(dropdown,type);
+  _repNeedsReload=true;
+}
+
+function filterRepDD(input){
+  var term=input.value.toLowerCase();
+  var opts=input.closest('.rep-dd-panel').querySelectorAll('.rep-dd-opt');
+  
+  opts.forEach(function(opt,i){
+    if(i===0)return; // Skip "Todos"
+    var text=opt.textContent.toLowerCase();
+    opt.style.display=text.indexOf(term)>=0?'':'none';
+  });
+}
+
+function toggleChartPanel(){
+  var panel=document.getElementById('chart-panel');
+  var btn=document.getElementById('chart-toggle-btn');
+  if(!panel||!btn)return;
+  
+  var isHidden=panel.style.display==='none'||!panel.style.display||panel.style.display==='';
+  
+  if(isHidden){
+    panel.style.display='block';
+    btn.classList.add('active');
+  }else{
+    panel.style.display='none';
+    btn.classList.remove('active');
+  }
+}
+
+// Close dropdowns when clicking outside
+var _repNeedsReload=false;
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.rep-custom-dropdown')){
+    var hadOpenDropdown=false;
+    document.querySelectorAll('.rep-custom-dropdown').forEach(function(dd){
+      if(dd.classList.contains('open')){
+        hadOpenDropdown=true;
+      }
+      dd.classList.remove('open');
+      var p=dd.querySelector('.rep-dd-panel');
+      if(p)p.style.display='none';
+    });
+    
+    // Reload reports if dropdown was open and changes were made
+    if(hadOpenDropdown&&_repNeedsReload){
+      _repNeedsReload=false;
+      loadReports();
+    }
+  }
+});
 
 async function loadReports(){
 const dateFrom=document.getElementById('rep-from')?.value||new Date(Date.now()-90*86400000).toISOString().split('T')[0];
@@ -707,42 +848,80 @@ const avgPerMonth=timeline&&timeline.length?Math.round(timeline.reduce((a,t)=>a+
 let html='';
 // FILTERS
 
+// Calculate active filters count
+var sysActive=_repState.systems.length;
+var devActive=_repState.devs.length;
+var priActive=_repState.priorities.length;
+var sprActive=_repState.sprints.length;
 
-// FILTER PANEL - CHECKBOXES
-html+='<div class="rep-filter-panel">';
-// Dates + export buttons
-html+='<div class="rep-filter-dates">';
-html+='<div class="fg" style="margin:0;min-width:120px"><label style="font-size:10px;font-weight:600;color:var(--t2)">De</label><input type="date" class="fsel" id="rep-from" value="'+dateFrom+'" onchange="loadReports()"></div>';
-html+='<div class="fg" style="margin:0;min-width:120px"><label style="font-size:10px;font-weight:600;color:var(--t2)">Até</label><input type="date" class="fsel" id="rep-to" value="'+dateTo+'" onchange="loadReports()"></div>';
-html+='<div style="display:flex;gap:6px;margin-left:auto;align-items:flex-end">';
-html+='<button class="btn btn-ok btn-sm" onclick="exportReportExcel()">'+IC.clipboard+' Excel</button>';
-html+='<button class="btn btn-sm" style="background:var(--err);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px" onclick="exportReportPDF()">'+IC.clipboard+' PDF</button>';
-html+='</div></div>';
-// Filter grid
-html+='<div class="rep-filter-grid">';
-// Sistema
-html+='<div class="rep-filter-section"><div class="rep-sec-header"><span class="rep-sec-title">Sistema</span><a class="rep-select-all" onclick="repSelectAll(\'rep-system\')">Todos/Nenhum</a></div><div class="rep-cb-group">';
-(allSystems||[]).forEach(function(s){var chk=_repState.systems.indexOf(String(s.id))>=0;html+='<label class="rep-cb-item'+(chk?' active':'')+'"><input type="checkbox" name="rep-system" value="'+s.id+'"'+(chk?' checked':'')+' onchange="repToggle(this)"><span class="cb-dot"></span>'+esc(s.name)+'</label>'});
-html+='</div></div>';
-// Desenvolvedor
-html+='<div class="rep-filter-section"><div class="rep-sec-header"><span class="rep-sec-title">Desenvolvedor</span><a class="rep-select-all" onclick="repSelectAll(\'rep-dev\')">Todos/Nenhum</a></div><div class="rep-cb-group">';
-(allDevs||[]).forEach(function(d){var chk=_repState.devs.indexOf(String(d.id))>=0;html+='<label class="rep-cb-item'+(chk?' active':'')+'"><input type="checkbox" name="rep-dev" value="'+d.id+'"'+(chk?' checked':'')+' onchange="repToggle(this)"><span class="cb-dot"></span>'+esc(d.name)+'</label>'});
-html+='</div></div>';
-// Prioridade
-html+='<div class="rep-filter-section"><div class="rep-sec-header"><span class="rep-sec-title">Prioridade</span><a class="rep-select-all" onclick="repSelectAll(\'rep-priority\')">Todos/Nenhum</a></div><div class="rep-cb-group">';
-['Urgente','Alta','Média','Baixa'].forEach(function(p){var chk=_repState.priorities.indexOf(p)>=0;html+='<label class="rep-cb-item'+(chk?' active':'')+'"><input type="checkbox" name="rep-priority" value="'+p+'"'+(chk?' checked':'')+' onchange="repToggle(this)"><span class="cb-dot"></span>'+p+'</label>'});
-html+='</div></div>';
-// Sprint
-html+='<div class="rep-filter-section"><div class="rep-sec-header"><span class="rep-sec-title">Sprint</span><a class="rep-select-all" onclick="repSelectAll(\'rep-sprint\')">Todos/Nenhum</a></div><div class="rep-cb-group">';
-(allSprints||[]).forEach(function(s){var chk=_repState.sprints.indexOf(String(s.id))>=0;html+='<label class="rep-cb-item'+(chk?' active':'')+'"><input type="checkbox" name="rep-sprint" value="'+s.id+'"'+(chk?' checked':'')+' onchange="repToggle(this)"><span class="cb-dot"></span>'+esc(s.name)+'</label>'});
-html+='</div></div>';
+// ULTRA-COMPACT FILTERS - Single row with custom dropdowns
+html+='<div class="rep-filters-ultra-compact">';
+html+='<div class="rep-ultra-row">';
+
+// Dates
+html+='<div class="rep-date-compact"><label>De</label><input type="date" class="fsel-compact" id="rep-from" value="'+dateFrom+'" onchange="loadReports()"></div>';
+html+='<div class="rep-date-compact"><label>Até</label><input type="date" class="fsel-compact" id="rep-to" value="'+dateTo+'" onchange="loadReports()"></div>';
+
+// Sistema custom dropdown
+html+='<div class="rep-custom-dropdown"><button class="rep-dd-btn" onclick="toggleRepDropdown(this)">Sistema'+(sysActive?' ('+sysActive+')':'')+'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button><div class="rep-dd-panel"><div class="rep-dd-search"><input type="text" placeholder="Buscar..." onkeyup="filterRepDD(this)"></div><div class="rep-dd-opts">';
+html+='<label class="rep-dd-opt"><input type="checkbox" onchange="repDDToggleAll(this,\'systems\')" '+(sysActive===allSystems.length?'checked':'')+'><span>Todos</span></label>';
+(allSystems||[]).forEach(function(s){var chk=_repState.systems.indexOf(String(s.id))>=0;html+='<label class="rep-dd-opt'+(chk?' active':'')+'"><input type="checkbox" data-type="systems" data-value="'+s.id+'"'+(chk?' checked':'')+' onchange="repDDChange(this)"><span>'+esc(s.name)+'</span></label>'});
+html+='</div></div></div>';
+
+// Desenvolvedor custom dropdown
+html+='<div class="rep-custom-dropdown"><button class="rep-dd-btn" onclick="toggleRepDropdown(this)">Desenvolvedor'+(devActive?' ('+devActive+')':'')+'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button><div class="rep-dd-panel"><div class="rep-dd-search"><input type="text" placeholder="Buscar..." onkeyup="filterRepDD(this)"></div><div class="rep-dd-opts">';
+html+='<label class="rep-dd-opt"><input type="checkbox" onchange="repDDToggleAll(this,\'devs\')" '+(devActive===allDevs.length?'checked':'')+'><span>Todos</span></label>';
+(allDevs||[]).forEach(function(d){var chk=_repState.devs.indexOf(String(d.id))>=0;html+='<label class="rep-dd-opt'+(chk?' active':'')+'"><input type="checkbox" data-type="devs" data-value="'+d.id+'"'+(chk?' checked':'')+' onchange="repDDChange(this)"><span>'+esc(d.name)+'</span></label>'});
+html+='</div></div></div>';
+
+// Prioridade custom dropdown
+html+='<div class="rep-custom-dropdown"><button class="rep-dd-btn" onclick="toggleRepDropdown(this)">Prioridade'+(priActive?' ('+priActive+')':'')+'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button><div class="rep-dd-panel"><div class="rep-dd-opts">';
+html+='<label class="rep-dd-opt"><input type="checkbox" onchange="repDDToggleAll(this,\'priorities\')" '+(priActive===4?'checked':'')+'><span>Todos</span></label>';
+['Urgente','Alta','Média','Baixa'].forEach(function(p){var chk=_repState.priorities.indexOf(p)>=0;html+='<label class="rep-dd-opt'+(chk?' active':'')+'"><input type="checkbox" data-type="priorities" data-value="'+p+'"'+(chk?' checked':'')+' onchange="repDDChange(this)"><span>'+p+'</span></label>'});
+html+='</div></div></div>';
+
+// Sprint custom dropdown
+html+='<div class="rep-custom-dropdown"><button class="rep-dd-btn" onclick="toggleRepDropdown(this)">Sprint'+(sprActive?' ('+sprActive+')':'')+'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button><div class="rep-dd-panel"><div class="rep-dd-search"><input type="text" placeholder="Buscar..." onkeyup="filterRepDD(this)"></div><div class="rep-dd-opts">';
+html+='<label class="rep-dd-opt"><input type="checkbox" onchange="repDDToggleAll(this,\'sprints\')" '+(sprActive===allSprints.length?'checked':'')+'><span>Todos</span></label>';
+(allSprints||[]).forEach(function(s){var chk=_repState.sprints.indexOf(String(s.id))>=0;html+='<label class="rep-dd-opt'+(chk?' active':'')+'"><input type="checkbox" data-type="sprints" data-value="'+s.id+'"'+(chk?' checked':'')+' onchange="repDDChange(this)"><span>'+esc(s.name)+'</span></label>'});
+html+='</div></div></div>';
+
+// Gráficos toggle button
+var _chartDefs=[
+  {key:'status',label:'Distribuição por Status'},
+  {key:'timeline',label:'Evolução Mensal'},
+  {key:'prod',label:'Produtividade da Equipe'},
+  {key:'avgdays',label:'Tempo Médio de Conclusão'},
+  {key:'priority',label:'Distribuição por Prioridade'},
+  {key:'system',label:'Demandas por Sistema (Gráfico)'},
+  {key:'sla',label:'Conformidade SLA'},
+  {key:'workload',label:'Carga de Trabalho'},
+  {key:'flow',label:'Fluxo Criação vs Conclusão'},
+  {key:'cancel',label:'Taxa de Cancelamento'},
+  {key:'bydev',label:'Demandas por Desenvolvedor (Tabela)'},
+  {key:'bysys',label:'Demandas por Sistema (Tabela)'},
+  {key:'proddetail',label:'Produtividade Detalhada (Tabela)'}
+];
+var chartActive=_repState.charts.length;
+html+='<button class="btn-filter-toggle" onclick="toggleChartPanel()" id="chart-toggle-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Gráficos'+(chartActive<10?' ('+chartActive+')':'')+'</button>';
+
+// Export buttons
+html+='<button class="btn btn-ok btn-sm" onclick="exportReportExcel()" style="margin-left:auto">'+IC.clipboard+' Excel</button>';
+html+='<button class="btn btn-sm" style="background:var(--err);color:#fff" onclick="exportReportPDF()">'+IC.clipboard+' PDF</button>';
+
+html+='</div>'; // close rep-ultra-row
+
+// Chart selection panel (collapsible)
+html+='<div class="rep-chart-panel" id="chart-panel" style="display:none">';
+html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 4px">';
+html+='<span style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase">Selecione os gráficos</span>';
+html+='<a class="rep-select-all" onclick="chartSelectAll()">Todos/Nenhum</a>';
+html+='</div>';
+html+='<div class="rep-cb-group">';
+_chartDefs.forEach(function(c){var isOn=_repState.charts.indexOf(c.key)>=0;html+='<label class="rep-cb-item'+(isOn?' active':'')+'"><input type="checkbox" name="rep-charts" value="'+c.key+'"'+(isOn?' checked':'')+' onchange="repToggle(this)"><span class="cb-dot"></span>'+c.label+'</label>'});
 html+='</div></div>';
 
-// CHART SELECTION PANEL
-var _chartDefs=[{key:'status',label:'Distribuição por Status'},{key:'timeline',label:'Evolução Mensal'},{key:'prod',label:'Produtividade da Equipe'},{key:'avgdays',label:'Tempo Médio de Conclusão'},{key:'priority',label:'Distribuição por Prioridade'},{key:'system',label:'Demandas por Sistema'},{key:'sla',label:'Conformidade SLA'},{key:'workload',label:'Carga de Trabalho'},{key:'flow',label:'Fluxo Criação vs Conclusão'},{key:'cancel',label:'Taxa de Cancelamento'}];
-html+='<div class="chart-toggle-panel"><div class="chart-toggle-header"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span>Gráficos Visíveis</span><a class="rep-select-all" onclick="chartSelectAll()">Todos/Nenhum</a></div><div class="chart-toggle-grid">';
-_chartDefs.forEach(function(c){var isOn=_repState.charts.indexOf(c.key)>=0;html+='<label class="chart-toggle-item'+(isOn?' active':'')+'"><input type="checkbox" name="rep-charts" value="'+c.key+'"'+(isOn?' checked':'')+' onchange="repToggle(this)"><span class="cb-dot"></span>'+c.label+'</label>'});
-html+='</div></div>';
+html+='</div>'; // close rep-filters-ultra-compact
 
 html+='<div id="report-area">';
 
@@ -778,12 +957,16 @@ html+='</div>';
 
 // CHARTS ROW 4
 html+='<div class="chart-row" style="margin-top:14px">';
-html+='<div class="chart-card" data-chart="sla"><h4>Conformidade SLA</h4><div style="max-width:220px;margin:0 auto"><canvas id="ch-sla" height="220"></canvas></div><div style="text-align:center;margin-top:8px"><span style="font-size:28px;font-weight:800;color:'+(slaRate>=80?'var(--ok)':slaRate>=50?'var(--warn)':'var(--err)')+'">'+slaRate+'%</span><div style="font-size:10px;color:var(--t3)">No prazo: '+(sla.on_time||0)+' / Total: '+(sla.total||0)+'</div></div></div>';
-html+='<div class="sla-info-box"><strong>O que é SLA?</strong> SLA (Service Level Agreement) mede a porcentagem de demandas entregues dentro do prazo estabelecido. '+
-'<strong>Verde (≥80%)</strong>: Excelente — a equipe está cumprindo os prazos de forma consistente. '+
-'<strong>Amarelo (50-79%)</strong>: Atenção — há atrasos que precisam ser monitorados. '+
-'<strong>Vermelho (&lt;50%)</strong>: Crítico — a maioria das demandas está atrasando, requer ação imediata. '+
+html+='<div class="chart-card sla-card-combined" data-chart="sla">';
+html+='<h4>Conformidade SLA</h4>';
+html+='<div style="display:flex;gap:20px;align-items:flex-start">';
+html+='<div style="flex:0 0 auto;max-width:220px"><canvas id="ch-sla" height="220"></canvas><div style="text-align:center;margin-top:8px"><span style="font-size:28px;font-weight:800;color:'+(slaRate>=80?'var(--ok)':slaRate>=50?'var(--warn)':'var(--err)')+'">'+slaRate+'%</span><div style="font-size:10px;color:var(--t3)">No prazo: '+(sla.on_time||0)+' / Total: '+(sla.total||0)+'</div></div></div>';
+html+='<div style="flex:1;font-size:11px;color:var(--t2);line-height:1.6;padding:8px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--brd)"><strong style="color:var(--t1);font-size:12px">O que é SLA?</strong><br><br>SLA (Service Level Agreement) mede a porcentagem de demandas entregues dentro do prazo estabelecido.<br><br>'+
+'<strong style="color:var(--ok)">Verde (≥80%)</strong>: Excelente — a equipe está cumprindo os prazos de forma consistente.<br><br>'+
+'<strong style="color:var(--warn)">Amarelo (50-79%)</strong>: Atenção — há atrasos que precisam ser monitorados.<br><br>'+
+'<strong style="color:var(--err)">Vermelho (&lt;50%)</strong>: Crítico — a maioria das demandas está atrasando, requer ação imediata.<br><br>'+
 'O cálculo considera apenas demandas que possuem prazo definido e que já foram concluídas ou estão em andamento.</div>';
+html+='</div></div>';
 
 html+='<div class="chart-card" data-chart="workload"><h4>Carga de Trabalho Atual</h4><canvas id="ch-workload" height="250"></canvas></div>';
 html+='</div>';
@@ -796,19 +979,8 @@ html+='</div>';
 
 
 applyChartVisibility();
-// TABLE: System Health
-html+='<div class="tbl-c" style="margin-top:20px"><div class="tbl-bar"><h3>Saúde dos Sistemas</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Sistema</th><th>Saúde</th><th>Total</th><th>Abertas</th><th>Urgentes</th><th>Concluídas</th><th>Média (dias)</th><th>Última Demanda</th></tr></thead><tbody>';
-(sysHealth||[]).forEach(s=>{
-  const ratio=s.total_demands>0?(s.concluidas/s.total_demands)*100:100;
-  const hClass=s.urgentes>0?'color:var(--err)':s.abertas>3||ratio<40?'color:var(--warn)':'color:var(--ok)';
-  const hLabel=s.urgentes>0?'Crítico':s.abertas>3||ratio<40?'Atenção':'Saudável';
-  html+='<tr><td style="font-weight:600">'+esc(s.name||'—')+'</td><td style="'+hClass+';font-weight:700">● '+hLabel+'</td><td>'+s.total_demands+'</td><td>'+(s.abertas>3?'<span style="color:var(--warn);font-weight:700">'+s.abertas+'</span>':s.abertas)+'</td><td>'+(s.urgentes>0?'<span style="color:var(--err);font-weight:700">'+s.urgentes+'</span>':s.urgentes)+'</td><td style="color:var(--ok)">'+s.concluidas+'</td><td>'+(s.avg_days?parseFloat(s.avg_days).toFixed(1):'—')+'</td><td style="font-size:10px;color:var(--t3)">'+fmtDT(s.last_demand)+'</td></tr>';
-});
-if(!(sysHealth||[]).length)html+='<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--t3)">Sem dados</td></tr>';
-html+='</tbody></table></div></div>';
-
 // TABLE: By Dev
-html+='<div class="tbl-c" style="margin-top:14px"><div class="tbl-bar"><h3>Demandas por Desenvolvedor</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Desenvolvedor</th><th>Total</th><th>Concluídas</th><th>Abertas</th><th>Andamento</th><th>Revisão</th><th>Média (dias)</th><th>% Conclusão</th></tr></thead><tbody>';
+html+='<div class="tbl-c" data-chart="bydev" style="margin-top:14px"><div class="tbl-bar"><h3>Demandas por Desenvolvedor</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Desenvolvedor</th><th>Total</th><th>Concluídas</th><th>Abertas</th><th>Andamento</th><th>Revisão</th><th>Média (dias)</th><th>% Conclusão</th></tr></thead><tbody>';
 (byDev||[]).forEach(d=>{
   const pct=d.total?Math.round((d.concluidas/d.total)*100):0;
   html+='<tr><td><div class="dev-tag">'+av(d.name,d.avatar_color,22,d.avatar_file,d.role)+' '+esc(d.name)+'</div></td><td style="font-weight:700">'+(d.total||0)+'</td><td style="color:var(--ok)">'+(d.concluidas||0)+'</td><td>'+(d.abertas||0)+'</td><td style="color:var(--acc)">'+(d.andamento||0)+'</td><td style="color:var(--warn)">'+(d.revisao||0)+'</td><td>'+(d.avg_days?parseFloat(d.avg_days).toFixed(1):'—')+'</td><td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+(pct>=70?'var(--ok)':pct>=40?'var(--warn)':'var(--err)')+';border-radius:3px"></div></div><span style="font-size:10px;font-weight:700">'+pct+'%</span></div></td></tr>';
@@ -817,7 +989,7 @@ if(!(byDev||[]).length)html+='<tr><td colspan="8" style="text-align:center;paddi
 html+='</tbody></table></div></div>';
 
 // TABLE: By System
-html+='<div class="tbl-c" style="margin-top:14px"><div class="tbl-bar"><h3>Demandas por Sistema</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Sistema</th><th>Total</th><th>Abertas</th><th>Andamento</th><th>Concluídas</th><th>Canceladas</th><th>Média (dias)</th></tr></thead><tbody>';
+html+='<div class="tbl-c" data-chart="bysys" style="margin-top:14px"><div class="tbl-bar"><h3>Demandas por Sistema</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Sistema</th><th>Total</th><th>Abertas</th><th>Andamento</th><th>Concluídas</th><th>Canceladas</th><th>Média (dias)</th></tr></thead><tbody>';
 (bySys||[]).forEach(s=>{
   html+='<tr><td style="font-weight:600">'+esc(s.name||'Sem sistema')+'</td><td style="font-weight:700">'+(s.total||0)+'</td><td>'+(s.abertas||0)+'</td><td style="color:var(--acc)">'+(s.andamento||0)+'</td><td style="color:var(--ok)">'+(s.concluidas||0)+'</td><td style="color:var(--err)">'+(s.canceladas||0)+'</td><td>'+(s.avg_days?parseFloat(s.avg_days).toFixed(1):'—')+'</td></tr>';
 });
@@ -825,7 +997,7 @@ if(!(bySys||[]).length)html+='<tr><td colspan="7" style="text-align:center;paddi
 html+='</tbody></table></div></div>';
 
 // TABLE: Productivity
-html+='<div class="tbl-c" style="margin-top:14px"><div class="tbl-bar"><h3>Produtividade Detalhada</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Dev</th><th>Concluídas</th><th>Em Aberto</th><th>Média (dias)</th><th>Horas</th><th>Reports</th><th>Eficiência</th></tr></thead><tbody>';
+html+='<div class="tbl-c" data-chart="proddetail" style="margin-top:14px"><div class="tbl-bar"><h3>Produtividade Detalhada</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Dev</th><th>Concluídas</th><th>Em Aberto</th><th>Média (dias)</th><th>Horas</th><th>Reports</th><th>Eficiência</th></tr></thead><tbody>';
 (productivity||[]).forEach(p=>{
   const eff=p.concluidas>0&&p.total_hours>0?(p.concluidas/(p.total_hours/8)).toFixed(1):'—';
   html+='<tr><td><div class="dev-tag">'+av(p.name,p.avatar_color,22,p.avatar_file,p.role)+' '+esc(p.name)+'</div></td><td style="color:var(--ok);font-weight:700">'+(p.concluidas||0)+'</td><td>'+(p.em_aberto||0)+'</td><td>'+(p.avg_days?parseFloat(p.avg_days).toFixed(1):'—')+'</td><td>'+(p.total_hours||0)+'h</td><td>'+(p.reports_count||0)+'</td><td style="font-weight:700;color:var(--acc)">'+eff+'</td></tr>';
@@ -842,33 +1014,43 @@ setTimeout(()=>{
 const gc=getComputedStyle(document.body).getPropertyValue('--bdr').trim()||'#2a3654';
 const tc=getComputedStyle(document.body).getPropertyValue('--t3').trim()||'#5a6d8f';
 const lc=getComputedStyle(document.body).getPropertyValue('--t2').trim()||'#8899b8';
-const co={responsive:true,plugins:{legend:{labels:{color:lc,font:{size:10}}}}};
+const co={responsive:true,devicePixelRatio:3,plugins:{legend:{labels:{color:lc,font:{size:10}}}}};
 Object.keys(chartInstances).forEach(k=>{if(chartInstances[k]){chartInstances[k].destroy();delete chartInstances[k]}});
 
 const pieC={'Aberta':'#6366f1','Aguardando Aceite':'#d4a017','Em Andamento':'#3b82f6','Em Revisão':'#f59e0b','Concluída':'#10b981','Cancelada':'#ef4444'};
-if(statusDist.length){chartInstances.pie=new Chart(document.getElementById('ch-pie'),{type:'doughnut',data:{labels:statusDist.map(s=>s.status),datasets:[{data:statusDist.map(s=>s.c),backgroundColor:statusDist.map(s=>pieC[s.status]||'#64748b'),borderWidth:0}]},options:{responsive:true,cutout:'55%',plugins:{legend:{position:'bottom',labels:{color:lc,font:{size:10},padding:8,usePointStyle:true}}}}})}
+if(statusDist.length){chartInstances.pie=new Chart(document.getElementById('ch-pie'),{type:'doughnut',data:{labels:statusDist.map(s=>s.status),datasets:[{data:statusDist.map(s=>s.c),backgroundColor:statusDist.map(s=>pieC[s.status]||'#64748b'),borderWidth:0}]},options:{responsive:true,devicePixelRatio:3,cutout:'55%',plugins:{legend:{position:'bottom',labels:{color:lc,font:{size:10},padding:8,usePointStyle:true}}}}})}
 
 if(timeline&&timeline.length){chartInstances.timeline=new Chart(document.getElementById('ch-timeline'),{type:'line',data:{labels:timeline.map(t=>t.month),datasets:[{label:'Criadas',data:timeline.map(t=>t.criadas),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',fill:true,tension:.4},{label:'Concluídas',data:timeline.map(t=>t.concluidas),borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.4},{label:'Canceladas',data:timeline.map(t=>t.canceladas||0),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.05)',fill:true,tension:.4,borderDash:[5,5]}]},options:{...co,scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tc}}}}})}
 
-if(productivity&&productivity.length){chartInstances.prod=new Chart(document.getElementById('ch-prod'),{type:'bar',data:{labels:productivity.map(p=>p.name),datasets:[{label:'Concluídas',data:productivity.map(p=>p.concluidas||0),backgroundColor:'#10b981',borderRadius:4},{label:'Em Aberto',data:productivity.map(p=>p.em_aberto||0),backgroundColor:'#3b82f6',borderRadius:4}]},options:{...co,scales:{x:{stacked:true,grid:{display:false},ticks:{color:tc,font:{size:10}}},y:{stacked:true,grid:{color:gc},ticks:{color:tc}}}}})}
+// Apply developer filter to productivity data
+const filteredProd=_repState.devs.length>0?(productivity||[]).filter(p=>{const devId=String(p.id||p.user_id||p.developer_id||'');return _repState.devs.indexOf(devId)>=0}):(productivity||[]);
+if(filteredProd.length){chartInstances.prod=new Chart(document.getElementById('ch-prod'),{type:'bar',data:{labels:filteredProd.map(p=>p.name),datasets:[{label:'Concluídas',data:filteredProd.map(p=>p.concluidas||0),backgroundColor:'#10b981',borderRadius:4},{label:'Em Aberto',data:filteredProd.map(p=>p.em_aberto||0),backgroundColor:'#3b82f6',borderRadius:4}]},options:{...co,scales:{x:{stacked:true,grid:{display:false},ticks:{color:tc,font:{size:10}}},y:{stacked:true,grid:{color:gc},ticks:{color:tc}}}}})}
 
-const devDays=(byDev||[]).filter(d=>d.avg_days);
+// Apply developer filter to byDev data
+const filteredByDev=_repState.devs.length>0?(byDev||[]).filter(d=>{const devId=String(d.id||d.user_id||d.developer_id||'');return _repState.devs.indexOf(devId)>=0}):(byDev||[]);
+const devDays=filteredByDev.filter(d=>d.avg_days);
 if(devDays.length){chartInstances.avgdays=new Chart(document.getElementById('ch-avgdays'),{type:'bar',data:{labels:devDays.map(d=>d.name),datasets:[{label:'Dias',data:devDays.map(d=>parseFloat(d.avg_days).toFixed(1)),backgroundColor:devDays.map(d=>d.avatar_color||'#3b82f6'),borderRadius:4}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc}},y:{grid:{display:false},ticks:{color:lc,font:{size:11}}}}}})}
 
 const priC2={'Urgente':'#ef4444','Alta':'#f59e0b','Média':'#6366f1','Baixa':'#10b981'};
-if(priDist.length){chartInstances.priority=new Chart(document.getElementById('ch-priority'),{type:'doughnut',data:{labels:priDist.map(p=>p.priority),datasets:[{data:priDist.map(p=>p.c),backgroundColor:priDist.map(p=>priC2[p.priority]||'#64748b'),borderWidth:0}]},options:{responsive:true,cutout:'55%',plugins:{legend:{position:'bottom',labels:{color:lc,font:{size:10},padding:8,usePointStyle:true}}}}})}
+if(priDist.length){chartInstances.priority=new Chart(document.getElementById('ch-priority'),{type:'doughnut',data:{labels:priDist.map(p=>p.priority),datasets:[{data:priDist.map(p=>p.c),backgroundColor:priDist.map(p=>priC2[p.priority]||'#64748b'),borderWidth:0}]},options:{responsive:true,devicePixelRatio:3,cutout:'55%',plugins:{legend:{position:'bottom',labels:{color:lc,font:{size:10},padding:8,usePointStyle:true}}}}})}
 
-if(bySys&&bySys.length){chartInstances.system=new Chart(document.getElementById('ch-system'),{type:'bar',data:{labels:bySys.map(s=>(s.name||'').length>15?s.name.slice(0,13)+'...':s.name||'—'),datasets:[{label:'Total',data:bySys.map(s=>s.total||0),backgroundColor:'#6366f1',borderRadius:4},{label:'Concluídas',data:bySys.map(s=>s.concluidas||0),backgroundColor:'#10b981',borderRadius:4}]},options:{...co,scales:{x:{grid:{display:false},ticks:{color:tc,font:{size:9}}},y:{grid:{color:gc},ticks:{color:tc}}}}})}
+// Apply system filter to bySys data
+const filteredBySys=_repState.systems.length>0?(bySys||[]).filter(s=>{const sysId=String(s.system_id||s.id||'');return _repState.systems.indexOf(sysId)>=0}):(bySys||[]);
+if(filteredBySys.length){chartInstances.system=new Chart(document.getElementById('ch-system'),{type:'bar',data:{labels:filteredBySys.map(s=>(s.name||'').length>15?s.name.slice(0,13)+'...':s.name||'—'),datasets:[{label:'Total',data:filteredBySys.map(s=>s.total||0),backgroundColor:'#6366f1',borderRadius:4},{label:'Concluídas',data:filteredBySys.map(s=>s.concluidas||0),backgroundColor:'#10b981',borderRadius:4}]},options:{...co,scales:{x:{grid:{display:false},ticks:{color:tc,font:{size:9}}},y:{grid:{color:gc},ticks:{color:tc}}}}})}
 
-chartInstances.sla=new Chart(document.getElementById('ch-sla'),{type:'doughnut',data:{labels:['No Prazo','Atrasadas'],datasets:[{data:[sla.on_time||0,Math.max(0,(sla.total||0)-(sla.on_time||0))],backgroundColor:[slaRate>=80?'#10b981':slaRate>=50?'#f59e0b':'#ef4444','#2a365440'],borderWidth:0}]},options:{responsive:true,cutout:'70%',rotation:-90,circumference:180,plugins:{legend:{display:false}}}});
+chartInstances.sla=new Chart(document.getElementById('ch-sla'),{type:'doughnut',data:{labels:['No Prazo','Atrasadas'],datasets:[{data:[sla.on_time||0,Math.max(0,(sla.total||0)-(sla.on_time||0))],backgroundColor:[slaRate>=80?'#10b981':slaRate>=50?'#f59e0b':'#ef4444','#2a365440'],borderWidth:0}]},options:{responsive:true,devicePixelRatio:3,cutout:'70%',rotation:-90,circumference:180,plugins:{legend:{display:false}}}});
 
-const wl=(productivity||[]).filter(p=>(p.em_aberto||0)>0);
+// Apply developer filter to workload (uses filtered productivity)
+const wl=filteredProd.filter(p=>(p.em_aberto||0)>0);
 if(wl.length){chartInstances.workload=new Chart(document.getElementById('ch-workload'),{type:'bar',data:{labels:wl.map(p=>p.name),datasets:[{label:'Ativas',data:wl.map(p=>p.em_aberto||0),backgroundColor:wl.map(p=>p.avatar_color||'#3b82f6'),borderRadius:4}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,stepSize:1}},y:{grid:{display:false},ticks:{color:lc,font:{size:11}}}}}})}
 
 if(timeline&&timeline.length){let a1=0,a2=0;const cc=[],cd=[];timeline.forEach(t=>{a1+=t.criadas||0;a2+=t.concluidas||0;cc.push(a1);cd.push(a2)});
 chartInstances.flow=new Chart(document.getElementById('ch-flow'),{type:'line',data:{labels:timeline.map(t=>t.month),datasets:[{label:'Criadas (acum.)',data:cc,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,.08)',fill:true,tension:.3},{label:'Concluídas (acum.)',data:cd,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.08)',fill:true,tension:.3}]},options:{...co,scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tc}}}}})}
 
 if(timeline&&timeline.length){chartInstances.cancel=new Chart(document.getElementById('ch-cancel'),{type:'bar',data:{labels:timeline.map(t=>t.month),datasets:[{label:'Canceladas',data:timeline.map(t=>t.canceladas||0),backgroundColor:'#ef444466',borderColor:'#ef4444',borderWidth:1,borderRadius:4}]},options:{...co,scales:{x:{grid:{display:false},ticks:{color:tc,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tc,stepSize:1}}}}})}
+
+// Apply chart visibility after all charts are rendered
+applyChartVisibility();
 },200);
 }
 
@@ -877,24 +1059,59 @@ async function exportReportExcel(){
 showToast(IC.clipboard+' Gerando Excel...');
 await loadScriptOnce('https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js');
 const rd=window._reportData;if(!rd)return showToast('Carregue os relatórios primeiro');
+const selectedCharts=_repState.charts;
 const wb=XLSX.utils.book_new();
+
+// Visão Geral - always included
 const ov1=[['Métrica','Valor'],['Total',rd.ov.total||0],['Concluídas',rd.ov.concluidas||0],['Ativas',rd.ov.ativas||0],['Canceladas',rd.ov.canceladas||0],['Urgentes',rd.ov.urgentes||0],['Taxa Conclusão %',rd.ov.total?Math.round((rd.ov.concluidas/rd.ov.total)*100):0],['Média Dias',rd.ov.avg_days||''],['SLA No Prazo',rd.sla.on_time||0],['SLA Total',rd.sla.total||0],['',''],['Período',rd.dateFrom+' a '+rd.dateTo]];
 XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ov1),'Visão Geral');
-const dr=[['Nome','Total','Concluídas','Abertas','Andamento','Revisão','Média Dias','% Conclusão']];
-(rd.byDev||[]).forEach(d=>dr.push([d.name,d.total||0,d.concluidas||0,d.abertas||0,d.andamento||0,d.revisao||0,d.avg_days||'',d.total?Math.round((d.concluidas/d.total)*100):0]));
-XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dr),'Por Desenvolvedor');
-const sr=[['Sistema','Total','Abertas','Andamento','Concluídas','Canceladas','Média Dias']];
-(rd.bySys||[]).forEach(s=>sr.push([s.name||'—',s.total||0,s.abertas||0,s.andamento||0,s.concluidas||0,s.canceladas||0,s.avg_days||'']));
-XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sr),'Por Sistema');
-const tr=[['Mês','Criadas','Concluídas','Canceladas']];
-(rd.timeline||[]).forEach(t=>tr.push([t.month,t.criadas||0,t.concluidas||0,t.canceladas||0]));
-XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(tr),'Evolução Mensal');
-const pr=[['Nome','Concluídas','Em Aberto','Média Dias','Horas','Reports']];
-(rd.productivity||[]).forEach(p=>pr.push([p.name,p.concluidas||0,p.em_aberto||0,p.avg_days||'',p.total_hours||0,p.reports_count||0]));
-XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pr),'Produtividade');
-const hr=[['Sistema','Saúde','Total','Abertas','Urgentes','Concluídas','Média Dias']];
-(rd.sysHealth||[]).forEach(s=>hr.push([s.name,s.urgentes>0?'Crítico':s.abertas>3?'Atenção':'Saudável',s.total_demands,s.abertas,s.urgentes,s.concluidas,s.avg_days||'']));
-XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(hr),'Saúde Sistemas');
+
+// Por Desenvolvedor - only if selected
+if(selectedCharts.indexOf('bydev')>=0){
+  const dr=[['Nome','Total','Concluídas','Abertas','Andamento','Revisão','Média Dias','% Conclusão']];
+  const filteredDevs=_repState.devs.length>0
+    ?(rd.byDev||[]).filter(d=>{
+      const devId=String(d.id||d.user_id||d.developer_id||'');
+      return _repState.devs.indexOf(devId)>=0;
+    })
+    :(rd.byDev||[]);
+  filteredDevs.forEach(d=>dr.push([d.name,d.total||0,d.concluidas||0,d.abertas||0,d.andamento||0,d.revisao||0,d.avg_days||'',d.total?Math.round((d.concluidas/d.total)*100):0]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dr),'Por Desenvolvedor');
+}
+
+// Por Sistema - only if selected
+if(selectedCharts.indexOf('bysys')>=0){
+  const sr=[['Sistema','Total','Abertas','Andamento','Concluídas','Canceladas','Média Dias']];
+  const filteredSys=_repState.systems.length>0
+    ?(rd.bySys||[]).filter(s=>{
+      const sysId=String(s.system_id||s.id||'');
+      return _repState.systems.indexOf(sysId)>=0;
+    })
+    :(rd.bySys||[]);
+  filteredSys.forEach(s=>sr.push([s.name||'—',s.total||0,s.abertas||0,s.andamento||0,s.concluidas||0,s.canceladas||0,s.avg_days||'']));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sr),'Por Sistema');
+}
+
+// Evolução Mensal - only if selected
+if(selectedCharts.indexOf('timeline')>=0){
+  const tr=[['Mês','Criadas','Concluídas','Canceladas']];
+  (rd.timeline||[]).forEach(t=>tr.push([t.month,t.criadas||0,t.concluidas||0,t.canceladas||0]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(tr),'Evolução Mensal');
+}
+
+// Produtividade - only if selected
+if(selectedCharts.indexOf('proddetail')>=0||selectedCharts.indexOf('prod')>=0){
+  const pr=[['Nome','Concluídas','Em Aberto','Média Dias','Horas','Reports']];
+  const filteredProd=_repState.devs.length>0
+    ?(rd.productivity||[]).filter(p=>{
+      const devId=String(p.id||p.user_id||p.developer_id||'');
+      return _repState.devs.indexOf(devId)>=0;
+    })
+    :(rd.productivity||[]);
+  filteredProd.forEach(p=>pr.push([p.name,p.concluidas||0,p.em_aberto||0,p.avg_days||'',p.total_hours||0,p.reports_count||0]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pr),'Produtividade');
+}
+
 XLSX.writeFile(wb,'Relatorio_ASSEGO_TI_'+rd.dateFrom+'_'+rd.dateTo+'.xlsx');
 showToast(IC.check+' Excel exportado!');
 }
@@ -938,24 +1155,25 @@ function hdr(){
   doc.setFillColor(245,190,30);doc.rect(0,hdrH-0.6,pw,0.6,'F');
 
   // --- Logos (right side) ---
-  // logoassego.png = full size (14mm height)
-  // logopre.png & logo.png = reduced (9mm height)
+  // logoassego.png = full size (14mm height) - mantém posição
+  // logopre.png & logo.png = reduced (9mm height) - descer para alinhar melhor
   var logoAssH=14;
   var logoSmH=9;
   var logoGap=3;
-  var logoTopY=3;
+  var logoTopY=3; // logoAssego mantém posição
+  var logoSmTopY=5.5; // logopre.png e logo.png descem 2.5mm
   var logoX=pw-mg;
   try{
     if(logoGoias){
       var lw=logoSmH*(logoGoias.width/logoGoias.height);
       logoX-=lw;
-      doc.addImage(logoGoias,'PNG',logoX,logoTopY,lw,logoSmH);
+      doc.addImage(logoGoias,'PNG',logoX,logoSmTopY,lw,logoSmH);
       logoX-=logoGap;
     }
     if(logoSergipe){
       var lw2=logoSmH*(logoSergipe.width/logoSergipe.height);
       logoX-=lw2;
-      doc.addImage(logoSergipe,'PNG',logoX,logoTopY,lw2,logoSmH);
+      doc.addImage(logoSergipe,'PNG',logoX,logoSmTopY,lw2,logoSmH);
       logoX-=logoGap;
     }
     if(logoAssego){
@@ -968,7 +1186,7 @@ function hdr(){
   // --- Title text aligned with top of logos ---
   var txtY=logoTopY+3.5;
   doc.setTextColor(255,255,255);doc.setFontSize(12);doc.setFont('helvetica','bold');
-  doc.text('Relatório ASSEGO TI - Desenvolvimento',mg,txtY);
+  doc.text('Relatório ASSEGO TI - Desenvolvimento de Sistemas',mg,txtY);
   doc.setFontSize(7);doc.setFont('helvetica','normal');
   doc.text('Relatório Gerencial  |  Presidência / Associação dos Subtenentes e Sargentos do Estado de Goiás',mg,txtY+5);
   doc.setFontSize(6.5);
@@ -979,8 +1197,8 @@ function hdr(){
 function ftr(){
   doc.setFillColor(10,50,140);doc.rect(0,ph-8,pw,8,'F');
   doc.setTextColor(140,150,170);doc.setFontSize(6.5);
-  doc.text('ASSEGO - Associação dos Subtenentes e Sargentos do Estado de Goiás  |  Sistema de Gestão de Demandas',pw/2,ph-3,{align:'center'});
-  doc.text('Pág. '+pg,pw-mg,ph-3,{align:'right'});
+  doc.text('ASSEGO - Associação dos Subtenentes e Sargentos do Estado de Goiás  |  Sistema Gestão Dev',pw/2,ph-4.5,{align:'center'});
+  doc.text('Pág. '+pg,pw-mg,ph-4.5,{align:'right'});
 }
 
 function newPg(){doc.addPage();pg++;y=hdr();ftr();}
@@ -1024,110 +1242,197 @@ kpis.forEach((k,i)=>{
 y+=kpiH+6;
 
 // ============================================================
-// CHARTS — high quality: scale 3, JPEG quality 1.0, border frame
+// CHARTS — ULTRA HIGH QUALITY: scale 5, PNG lossless, border frame
+// ONLY CAPTURE CHART.JS CANVASES (not tables/HTML content)
 // ============================================================
 const area=document.getElementById('report-area');
 if(area){
-  const cards=area.querySelectorAll('.chart-card');
+  // Get only .chart-card elements that contain a <canvas> (Chart.js graphs)
+  const allChartCards=Array.from(area.querySelectorAll('.chart-card')).filter(card=>card.querySelector('canvas'));
+  const visibleCards=allChartCards.filter(card=>card.style.display!=='none');
   const gap=6;
   const colW=(pw-mg*2-gap)/2;
   let rowStartY=y;
-
-  for(let i=0;i<cards.length;i++){
+  
+  for(let i=0;i<visibleCards.length;i++){
     try{
-      const cvs=await html2canvas(cards[i],{
+      const card=visibleCards[i];
+      
+      // Use html2canvas - charts already at 3x devicePixelRatio
+      const cvs=await html2canvas(card,{
         backgroundColor:chartBg,
-        scale:3,
+        scale:2,
         useCORS:true,
-        logging:false,
-        imageTimeout:5000,
-        removeContainer:true
+        allowTaint:false,
+        logging:false
       });
-      const imgData=cvs.toDataURL('image/jpeg',1.0);
+      
+      const imgData=cvs.toDataURL('image/png',1.0);
       let ih=(cvs.height/cvs.width)*colW;
-      if(ih>85)ih=85;
+      if(ih>75)ih=75;
 
       const colIdx=i%2;
       if(colIdx===0){
-        safeY(ih+8);
+        safeY(ih+10);
         rowStartY=y;
       }
 
       const xPos=mg+colIdx*(colW+gap);
-      // Light border frame around chart
-      doc.setDrawColor(180,190,210);doc.setLineWidth(0.2);
+      
+      // Draw chart with border
+      doc.setDrawColor(226,232,240);
+      doc.setLineWidth(0.3);
       doc.roundedRect(xPos-0.5,rowStartY-0.5,colW+1,ih+1,1.5,1.5,'S');
-      doc.addImage(imgData,'JPEG',xPos,rowStartY,colW,ih);
+      doc.addImage(imgData,'PNG',xPos,rowStartY,colW,ih);
 
-      if(colIdx===1||i===cards.length-1){
+      if(colIdx===1||i===visibleCards.length-1){
         y=rowStartY+ih+5;
       }
     }catch(e){console.log('PDF chart err',e)}
   }
+  
+  // Ensure y is properly set after all charts
+  if(visibleCards.length>0){
+    y+=5; // Extra spacing after charts
+  }else{
+    y+=10; // Spacing when no charts (going directly to tables)
+  }
 }
 
 // ============================================================
-// TABLE: Developer Productivity — improved styling
+// TABLE: Developer Productivity — ONLY IF SELECTED
 // ============================================================
-newPg();y+=2;
-const tblW=pw-mg*2;
-doc.setTextColor(59,130,246);doc.setFontSize(12);doc.setFont('helvetica','bold');
-doc.text('PRODUTIVIDADE POR DESENVOLVEDOR',mg,y);y+=7;
-const dh=['Desenvolvedor','Concluídas','Em Aberto','Média Dias','% Conclusão'];
-const dw=[72,28,28,28,42];
-// Header row
-doc.setFillColor(30,45,80);doc.roundedRect(mg,y,tblW,6.5,1,1,'F');
-doc.setTextColor(220,225,240);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
-dh.forEach((h,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=dw[j];doc.text(h,cx+3,y+4.5)});
-y+=7.5;
-// Data rows with alternating background
-doc.setFont('helvetica','normal');
-(rd.byDev||[]).forEach((d,ri)=>{
-  safeY(7);
-  if(ri%2===0){doc.setFillColor(240,242,248);doc.rect(mg,y,tblW,6,'F')}
-  doc.setTextColor(40,50,70);doc.setFontSize(7.5);
-  const pct=d.total?Math.round((d.concluidas/d.total)*100):0;
-  const vals=[d.name,String(d.concluidas||0),String(d.abertas||0),d.avg_days?parseFloat(d.avg_days).toFixed(1):'—',pct+'%'];
-  vals.forEach((v,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=dw[j];doc.text(String(v),cx+3,y+4.2)});
-  doc.setDrawColor(210,215,225);doc.setLineWidth(0.15);doc.line(mg,y+6,pw-mg,y+6);
-  y+=6;
-});
+const selectedCharts=_repState.charts;
+if(selectedCharts.indexOf('bydev')>=0){
+  // Ensure minimum spacing from charts
+  const minSpacing=20;
+  y+=minSpacing;
+  
+  // Only create new page if current page doesn't have enough space
+  const neededSpace=50;
+  if(y+neededSpace>ph-16){
+    newPg();
+  }
+  
+  const tblW=pw-mg*2;
+  doc.setTextColor(59,130,246);doc.setFontSize(12);doc.setFont('helvetica','bold');
+  doc.text('PRODUTIVIDADE POR DESENVOLVEDOR',mg,y);y+=7;
+  const dh=['Desenvolvedor','Concluídas','Em Aberto','Média Dias','% Conclusão'];
+  const dw=[72,28,28,28,42];
+  // Header row
+  doc.setFillColor(30,45,80);doc.roundedRect(mg,y,tblW,6.5,1,1,'F');
+  doc.setTextColor(220,225,240);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
+  dh.forEach((h,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=dw[j];doc.text(h,cx+3,y+4.5)});
+  y+=7.5;
+  // Data rows with alternating background - APPLY DEVELOPER FILTER
+  doc.setFont('helvetica','normal');
+  const filteredDevs=_repState.devs.length>0
+    ?(rd.byDev||[]).filter(d=>{
+      const devId=String(d.id||d.user_id||d.developer_id||'');
+      return _repState.devs.indexOf(devId)>=0;
+    })
+    :(rd.byDev||[]);
+  
+  filteredDevs.forEach((d,ri)=>{
+    safeY(7);
+    if(ri%2===0){doc.setFillColor(240,242,248);doc.rect(mg,y,tblW,6,'F')}
+    doc.setTextColor(40,50,70);doc.setFontSize(7.5);
+    const pct=d.total?Math.round((d.concluidas/d.total)*100):0;
+    const vals=[d.name,String(d.concluidas||0),String(d.abertas||0),d.avg_days?parseFloat(d.avg_days).toFixed(1):'—',pct+'%'];
+    vals.forEach((v,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=dw[j];doc.text(String(v),cx+3,y+4.2)});
+    doc.setDrawColor(210,215,225);doc.setLineWidth(0.15);doc.line(mg,y+6,pw-mg,y+6);
+    y+=6;
+  });
+}
 
 // ============================================================
-// TABLE: System Health — improved styling with color-coded health
+// TABLE: By System — ONLY IF SELECTED
 // ============================================================
-y+=10;safeY(30);
-doc.setTextColor(59,130,246);doc.setFontSize(12);doc.setFont('helvetica','bold');
-doc.text('SAÚDE DOS SISTEMAS',mg,y);y+=7;
-const sh2=['Sistema','Saúde','Total','Abertas','Urgentes','Concluídas','Média Dias'];
-const sw=[62,28,20,20,24,24,24];
-// Header row
-doc.setFillColor(30,45,80);doc.roundedRect(mg,y,tblW,6.5,1,1,'F');
-doc.setTextColor(220,225,240);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
-sh2.forEach((h,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=sw[j];doc.text(h,cx+3,y+4.5)});
-y+=7.5;
-// Data rows
-doc.setFont('helvetica','normal');
-(rd.sysHealth||[]).forEach((s,ri)=>{
-  safeY(7);
-  if(ri%2===0){doc.setFillColor(240,242,248);doc.rect(mg,y,tblW,6,'F')}
-  const h=s.urgentes>0?'Crítico':s.abertas>3?'Atenção':'Saudável';
-  const vals=[s.name||'—',h,String(s.total_demands),String(s.abertas),String(s.urgentes),String(s.concluidas),s.avg_days?parseFloat(s.avg_days).toFixed(1):'—'];
-  doc.setFontSize(7.5);
-  vals.forEach((v,i)=>{
-    let cx=mg;for(let j=0;j<i;j++)cx+=sw[j];
-    if(i===1){
-      if(h==='Crítico') doc.setTextColor(220,50,50);
-      else if(h==='Atenção') doc.setTextColor(200,140,20);
-      else doc.setTextColor(16,185,129);
-    } else {
-      doc.setTextColor(40,50,70);
-    }
-    doc.text(String(v),cx+3,y+4.2);
+if(selectedCharts.indexOf('bysys')>=0){
+  // Ensure minimum spacing
+  const minSpacing=15;
+  y+=minSpacing;
+  
+  // Check if need new page
+  const neededSpace=50;
+  if(y+neededSpace>ph-16){
+    newPg();
+  }
+  
+  const tblW=pw-mg*2;
+  doc.setTextColor(59,130,246);doc.setFontSize(12);doc.setFont('helvetica','bold');
+  doc.text('DEMANDAS POR SISTEMA',mg,y);y+=7;
+  const bsh=['Sistema','Total','Abertas','Andamento','Concluídas','Canceladas','Média Dias'];
+  const bsw=[62,20,20,24,24,24,24];
+  // Header row
+  doc.setFillColor(30,45,80);doc.roundedRect(mg,y,tblW,6.5,1,1,'F');
+  doc.setTextColor(220,225,240);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
+  bsh.forEach((h,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=bsw[j];doc.text(h,cx+3,y+4.5)});
+  y+=7.5;
+  // Data rows - APPLY SYSTEM FILTER
+  doc.setFont('helvetica','normal');
+  const filteredBySys=_repState.systems.length>0
+    ?(rd.bySys||[]).filter(s=>{
+      const sysId=String(s.system_id||s.id||'');
+      return _repState.systems.indexOf(sysId)>=0;
+    })
+    :(rd.bySys||[]);
+  
+  filteredBySys.forEach((s,ri)=>{
+    safeY(7);
+    if(ri%2===0){doc.setFillColor(240,242,248);doc.rect(mg,y,tblW,6,'F')}
+    const vals=[s.name||'Sem sistema',String(s.total||0),String(s.abertas||0),String(s.andamento||0),String(s.concluidas||0),String(s.canceladas||0),s.avg_days?parseFloat(s.avg_days).toFixed(1):'—'];
+    doc.setTextColor(40,50,70);doc.setFontSize(7.5);
+    vals.forEach((v,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=bsw[j];doc.text(String(v),cx+3,y+4.2)});
+    doc.setDrawColor(210,215,225);doc.setLineWidth(0.15);doc.line(mg,y+6,pw-mg,y+6);
+    y+=6;
   });
-  doc.setDrawColor(210,215,225);doc.setLineWidth(0.15);doc.line(mg,y+6,pw-mg,y+6);
-  y+=6;
-});
+}
+
+// ============================================================
+// TABLE: Detailed Productivity — ONLY IF SELECTED
+// ============================================================
+if(selectedCharts.indexOf('proddetail')>=0){
+  // Ensure minimum spacing
+  const minSpacing=15;
+  y+=minSpacing;
+  
+  // Check if need new page
+  const neededSpace=50;
+  if(y+neededSpace>ph-16){
+    newPg();
+  }
+  
+  const tblW=pw-mg*2;
+  doc.setTextColor(59,130,246);doc.setFontSize(12);doc.setFont('helvetica','bold');
+  doc.text('PRODUTIVIDADE DETALHADA',mg,y);y+=7;
+  const pdh=['Desenvolvedor','Concluídas','Em Aberto','Média Dias','Horas','Reports','Eficiência'];
+  const pdw=[52,22,22,22,18,18,24];
+  // Header row
+  doc.setFillColor(30,45,80);doc.roundedRect(mg,y,tblW,6.5,1,1,'F');
+  doc.setTextColor(220,225,240);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
+  pdh.forEach((h,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=pdw[j];doc.text(h,cx+3,y+4.5)});
+  y+=7.5;
+  // Data rows - APPLY DEVELOPER FILTER
+  doc.setFont('helvetica','normal');
+  const filteredProd=_repState.devs.length>0
+    ?(rd.productivity||[]).filter(p=>{
+      const devId=String(p.id||p.user_id||p.developer_id||'');
+      return _repState.devs.indexOf(devId)>=0;
+    })
+    :(rd.productivity||[]);
+  
+  filteredProd.forEach((p,ri)=>{
+    safeY(7);
+    if(ri%2===0){doc.setFillColor(240,242,248);doc.rect(mg,y,tblW,6,'F')}
+    const eff=p.concluidas>0&&p.total_hours>0?(p.concluidas/(p.total_hours/8)).toFixed(1):'—';
+    const vals=[p.name,String(p.concluidas||0),String(p.em_aberto||0),p.avg_days?parseFloat(p.avg_days).toFixed(1):'—',String((p.total_hours||0)+'h'),String(p.reports_count||0),eff];
+    doc.setTextColor(40,50,70);doc.setFontSize(7.5);
+    vals.forEach((v,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=pdw[j];doc.text(String(v),cx+3,y+4.2)});
+    doc.setDrawColor(210,215,225);doc.setLineWidth(0.15);doc.line(mg,y+6,pw-mg,y+6);
+    y+=6;
+  });
+}
 
 doc.save('Relatorio_ASSEGO_TI_'+rd.dateFrom+'_'+rd.dateTo+'.pdf');
 showToast(IC.check+' PDF exportado!');
