@@ -129,7 +129,10 @@ tbody tr{transition:.15s;cursor:pointer}tbody tr:hover{background:var(--bg3h)}
 .modal-b{padding:22px}.modal-f{padding:14px 22px;border-top:1px solid var(--bdr);display:flex;justify-content:flex-end;gap:8px}
 
 .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-.card{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--rl);padding:18px;transition:.2s}.card:hover{border-color:var(--bdrl);transform:translateY(-2px)}
+.card{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--rl);padding:18px;transition:.2s;overflow:hidden}.card:hover{border-color:var(--bdrl);transform:translateY(-2px)}
+.card h4{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.card p{word-wrap:break-word;overflow-wrap:break-word}
+.card a{word-break:break-all}
 
 .notice-card{border-left:4px solid var(--acc);padding:18px 18px 18px 22px}
 .notice-card.urgente{border-left-color:var(--err)}.notice-card.importante{border-left-color:var(--warn)}

@@ -37,14 +37,19 @@ clipboard:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="c
 hourglass:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.17a2 2 0 0 0-.59-1.41L12 12l-4.41 4.41A2 2 0 0 0 7 17.83V22"/><path d="M7 2v4.17a2 2 0 0 0 .59 1.41L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2"/></svg>',
 play:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
 alert:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-};
+
+x:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+lock_sm:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+lock_lg:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+file:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'};
 const IC_CROWN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M2 20h20"/><path d="M4 20V10l4 4 4-8 4 8 4-4v10"/></svg>';
 const TECH_LIST=['PHP','MySQL','JavaScript','jQuery','Bootstrap','CSS','HTML','React','Node.js','Vue.js','Angular','TypeScript','Python','Laravel','Docker','API REST','JSON','Git','Apache','Nginx','Redis','MongoDB','PostgreSQL','Tailwind','Sass','WordPress','Low Code','Photoprisma','QR Code','GPS','Cron','Vercel','Firebase','AWS','Linux','Flutter','Kotlin','Swift','C#','.NET','Java','Go','Rust'];
 const ROLE_LABELS={admin:'Administrador',dev:'Desenvolvedor',presidencia:'Presidência',diretor:'Diretor',usuario:'Usuário'};
 let calMonth=new Date().toISOString().slice(0,7);
 let chartInstances={};
 
-async function api(a,o={}){const u='api.php?action='+a+(o.params?'&'+new URLSearchParams(o.params):'');const f={method:o.method||'GET',headers:{}};if(o.body){f.headers['Content-Type']='application/json';f.body=JSON.stringify(o.body)}if(o.formData){f.body=o.formData;f.method='POST'}const r=await fetch(u,f);if(r.status===401){window.location.href='login.php';return null}return r.json()}
+const DOCS_ACTIONS=new Set(['docs','doc','doc_upload','doc_file_delete','doc_file_download']);
+async function api(a,o={}){const base=DOCS_ACTIONS.has(a)?'docs_api.php':'api.php';const u=base+'?action='+a+(o.params?'&'+new URLSearchParams(o.params):'');const f={method:o.method||'GET',headers:{}};if(o.body){f.headers['Content-Type']='application/json';f.body=JSON.stringify(o.body)}if(o.formData){f.body=o.formData;f.method='POST'}const r=await fetch(u,f);if(r.status===401){window.location.href='login.php';return null}return r.json()}
 async function doLogout(){await api('logout');window.location.href='login.php'}
 function toggleTheme(){document.body.classList.toggle('light');localStorage.setItem('theme',document.body.classList.contains('light')?'light':'dark')}
 (function(){if(localStorage.getItem('theme')==='light')document.body.classList.add('light')})()
@@ -259,7 +264,7 @@ ${wfHtml}
 <div class="det-info-grid">
 <div class="det-info-item"><span class="det-info-label">Status</span><span class="badge ${sClass(d.status)}">${d.status}</span></div>
 <div class="det-info-item"><span class="det-info-label">Prioridade ${priTip}</span><span class="badge ${pClass(d.priority)}">${d.priority}</span></div>
-<div class="det-info-item"><span class="det-info-label">Sistema</span><span class="det-info-val">${esc(d.system_name||'—')}${d.system_url?` <a href="https://${d.system_url}" target="_blank" style="color:var(--acc)">↗</a>`:''}${d.github_url?` <a href="https://${d.github_url}" target="_blank" style="color:var(--t2)">⊙</a>`:''}</span></div>
+<div class="det-info-item"><span class="det-info-label">Sistema</span><span class="det-info-val">${d.system_id?`<a href="#" onclick="event.preventDefault();event.stopPropagation();closeM('m-detail');setTimeout(()=>openSystemDetail(${d.system_id}),200)" style="color:var(--acc);font-weight:600;text-decoration:none;cursor:pointer" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(d.system_name||'—')}</a>`:esc(d.system_name||'—')}${d.system_url?` <a href="https://${d.system_url}" target="_blank" style="color:var(--acc)" onclick="event.stopPropagation()">↗</a>`:''}${d.github_url?` <a href="https://${d.github_url}" target="_blank" style="color:var(--t2)" onclick="event.stopPropagation()">⊙</a>`:''}</span></div>
 <div class="det-info-item"><span class="det-info-label">Solicitante</span><span class="det-info-val">${esc(d.requester||'—')}</span></div>
 <div class="det-info-item"><span class="det-info-label">Criado por</span><span class="det-info-val">${esc(d.creator_name||'—')}</span></div>
 <div class="det-info-item"><span class="det-info-label">Início</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmtDate(d.start_date)}</span></div>
@@ -360,8 +365,8 @@ const devFilter=devSel?.value;
 let filtered=sys;
 if(mine) filtered=filtered.filter(s=>(s.dev_ids||'').split(',').includes(String(ME.id)));
 if(devFilter) filtered=filtered.filter(s=>(s.dev_ids||'').split(',').includes(devFilter));
-document.getElementById('sistemas-grid').innerHTML=filtered.length?filtered.map(s=>{const dn=(s.dev_names||'').split(', ').filter(Boolean);const dc=(s.dev_colors||'').split(',');const da=(s.dev_avatars||'').split(',');const dr=(s.dev_roles||'').split('|');const techs=(s.technology||'').split(',').filter(Boolean);return`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:14px;font-weight:700">${esc(s.name)}</span><span class="badge ${{
-'Em uso':'s-concluida','Testes':'s-revisao','Pausado':'s-cancelada','Em desenvolvimento':'s-andamento','Não utilizado':'s-aberta'}[s.status]||''}">${s.status}</span></div><p style="font-size:11px;color:var(--t2);line-height:1.5;margin-bottom:10px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;word-break:break-word">${esc(s.description||'')}</p><div class="tech-tags">${techs.map(t=>`<span class="tech-tag">${esc(t.trim())}</span>`).join('')}</div><div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;overflow:hidden;min-width:0">${s.url?`<a href="https://${s.url}" target="_blank" class="tag" style="color:var(--ok);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;display:inline-block;vertical-align:middle">${IC.link} ${esc(s.url)}</a>`:''}${s.github_url?`<a href="https://${s.github_url}" target="_blank" class="tag" style="color:var(--t1)">${IC.git} GitHub</a>`:''}</div><div style="margin-top:8px;display:flex;gap:3px;flex-wrap:wrap">${dn.map((n,i)=>av(n,dc[i],22,da[i]||'',dr[i]||'')).join('')}</div>${s.department?`<div style="margin-top:6px;font-size:10px;color:var(--t3)">${IC.folder} ${esc(s.department)}</div>`:''}${IS_ADMIN?`<div style="margin-top:10px"><button class="btn btn-g btn-sm" onclick="editSystem(${s.id})">${IC.edit}</button> <button class="btn btn-g btn-sm" style="color:var(--err)" onclick="if(confirm('Excluir?'))api('system',{method:'DELETE',params:{id:${s.id}}}).then(loadSystems)">${IC.trash}</button></div>`:''}</div>`}).join(''):'<div class="empty" style="padding:40px;text-align:center"><p>Nenhum sistema encontrado</p></div>'}
+document.getElementById('sistemas-grid').innerHTML=filtered.length?filtered.map(s=>{const dn=(s.dev_names||'').split(', ').filter(Boolean);const dc=(s.dev_colors||'').split(',');const da=(s.dev_avatars||'').split(',');const dr=(s.dev_roles||'').split('|');const techs=(s.technology||'').split(',').filter(Boolean);return`<div class="card" onclick="openSystemDetail(${s.id})" style="cursor:pointer;transition:border-color .18s,box-shadow .18s,transform .15s" onmouseover="this.style.borderColor='var(--acc)';this.style.boxShadow='0 6px 24px rgba(0,0,0,.18)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='';this.style.boxShadow='';this.style.transform=''"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:14px;font-weight:700">${esc(s.name)}</span><span class="badge ${{
+'Em uso':'s-concluida','Testes':'s-revisao','Pausado':'s-cancelada','Em desenvolvimento':'s-andamento','Não utilizado':'s-aberta'}[s.status]||''}">${s.status}</span></div><p style="font-size:11px;color:var(--t2);line-height:1.5;margin-bottom:10px">${esc(s.description||'')}</p><div class="tech-tags">${techs.map(t=>`<span class="tech-tag">${esc(t.trim())}</span>`).join('')}</div><div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${s.url?`<a href="https://${s.url}" target="_blank" class="tag" style="color:var(--ok)">${IC.link} ${esc(s.url)}</a>`:''}${s.github_url?`<a href="https://${s.github_url}" target="_blank" class="tag" style="color:var(--t1)">${IC.git} GitHub</a>`:''}</div><div style="margin-top:8px;display:flex;gap:3px;flex-wrap:wrap">${dn.map((n,i)=>av(n,dc[i],22,da[i]||'',dr[i]||'')).join('')}</div>${s.department?`<div style="margin-top:6px;font-size:10px;color:var(--t3)">${IC.folder} ${esc(s.department)}</div>`:''}${IS_ADMIN?`<div style="margin-top:10px"><button class="btn btn-g btn-sm" onclick="editSystem(${s.id})">${IC.edit}</button> <button class="btn btn-g btn-sm" style="color:var(--err)" onclick="if(confirm('Excluir?'))api('system',{method:'DELETE',params:{id:${s.id}}}).then(loadSystems)">${IC.trash}</button></div>`:''}</div>`}).join(''):'<div class="empty" style="padding:40px;text-align:center"><p>Nenhum sistema encontrado</p></div>'}
 function openSystemModal(d){document.getElementById('m-system-t').textContent=d?'Editar':'Novo Sistema';document.getElementById('s-edit-id').value=d?.id||'';document.getElementById('s-name').value=d?.name||'';document.getElementById('s-desc').value=d?.description||'';document.getElementById('s-status').value=d?.status||'Em desenvolvimento';document.getElementById('s-url').value=d?.url||'';document.getElementById('s-github').value=d?.github_url||'';document.getElementById('s-dept').value=d?.department||'';devCheckboxes('s-devs',d?.dev_ids?String(d.dev_ids).split(','):[]);
 // Tech dropdown
 const selTechs=(d?.technology||'').split(',').map(t=>t.trim()).filter(Boolean);
@@ -1661,89 +1666,208 @@ setInterval(()=>{const pg=getCurrentPage();if(pg==='dashboard')loadDashboard();e
 
 // ===== DOCUMENTATIONS PAGE =====
 async function loadDocs(){
+const dc=document.getElementById('docs-content');if(!dc)return;
 const sysF=document.getElementById('doc-sys-f')?.value||'';
 const catF=document.getElementById('doc-cat-f')?.value||'';
 const p={};if(sysF)p.system_id=sysF;if(catF)p.category=catF;
-const docs=await api('docs',{params:p})||[];
+let docs=[];
+try{const res=await api('docs',{params:p});if(Array.isArray(res))docs=res;else if(res&&Array.isArray(res.data))docs=res.data;else{console.warn('loadDocs: resposta inesperada',res);docs=[];}}catch(e){console.error('loadDocs erro:',e);docs=[];}
 const cats=[...new Set(docs.map(d=>d.category).filter(Boolean))];
-
-let html='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center">';
-if(IS_ADMIN||IS_DIR||IS_DEV)html+='<button class="btn btn-p btn-sm" onclick="openDocModal()">'+IC.plus+' Nova Documentação</button>';
-html+='<select class="fsel" id="doc-sys-f" onchange="loadDocs()" style="min-width:140px"><option value="">Todos Sistemas</option>'+(allSystems||[]).map(s=>'<option value="'+s.id+'"'+(sysF==s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>';
-html+='<select class="fsel" id="doc-cat-f" onchange="loadDocs()" style="min-width:120px"><option value="">Todas Categorias</option>'+cats.map(c=>'<option value="'+esc(c)+'"'+(catF===c?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select>';
-html+='<span style="margin-left:auto;font-size:11px;color:var(--t3)">'+docs.length+' documentos</span></div>';
-
-html+='<div class="cards-grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">';
+let html='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;align-items:center">';
+html+='<button class="btn btn-p btn-sm" onclick="openDocModal()">'+IC.plus+' Nova Documentação</button>';
+html+='<select class="fsel" id="doc-sys-f" onchange="loadDocs()" style="min-width:160px"><option value="">Todos Sistemas</option>'+(allSystems||[]).map(s=>'<option value="'+s.id+'"'+(sysF==s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>';
+html+='<select class="fsel" id="doc-cat-f" onchange="loadDocs()" style="min-width:140px"><option value="">Todas Categorias</option>'+cats.map(c=>'<option value="'+esc(c)+'"'+(catF===c?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select>';
+html+='<span style="margin-left:auto;font-size:11px;color:var(--t3)">'+docs.length+' documento'+(docs.length!==1?'s':'')+'</span></div>';
+html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">';
 docs.forEach(d=>{
-  html+='<div class="doc-card" onclick="openDoc('+d.id+')">';
-  html+='<div class="dc-t">'+(d.has_password?IC.eye+'&nbsp;':'')+''+esc(d.title)+'</div>';
-  html+='<span class="dc-cat">'+esc(d.category||'Geral')+'</span>';
-  if(d.system_name)html+=' <span style="font-size:9px;color:var(--t3)">'+esc(d.system_name)+'</span>';
-  html+='<div class="dc-meta">'+esc(d.author_name||'—')+' · '+fmtDT(d.updated_at||d.created_at);
-  if(d.files&&d.files.length)html+=' · '+d.files.length+' arquivo(s)';
-  if(d.has_password)html+=' · <span class="dc-lock">🔒 Protegido</span>';
-  html+='</div></div>';
+  const fc=d.files?.length||0;
+  html+=`<div onclick="openDoc(${d.id})" style="cursor:pointer;padding:16px;background:var(--bg2);border:1px solid var(--bdr);border-radius:14px;transition:border-color .18s,box-shadow .18s,transform .15s;display:flex;flex-direction:column;gap:8px" onmouseover="this.style.borderColor='var(--acc)';this.style.boxShadow='0 6px 24px rgba(0,0,0,.18)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--bdr)';this.style.boxShadow='none';this.style.transform='translateY(0)'">`;
+  // Title row
+  html+=`<div style="display:flex;align-items:center;gap:6px"><span style="font-weight:600;font-size:13px;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.title)}</span>${d.has_password?'<span style="color:var(--t3);flex-shrink:0" title="Protegido por senha">'+IC.lock_sm+'</span>':''}</div>`;
+  // Description
+  if(d.description)html+=`<p style="font-size:11px;color:var(--t2);line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin:0">${esc(d.description)}</p>`;
+  // Tags row
+  html+=`<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">`;
+  html+=`<span style="font-size:9px;background:var(--bg3);color:var(--t2);padding:2px 8px;border-radius:6px;font-weight:500">${esc(d.category||'Geral')}</span>`;
+  if(d.system_name)html+=`<a href="#" onclick="event.preventDefault();event.stopPropagation();openSystemDetail(${d.system_id})" style="font-size:9px;background:rgba(99,102,241,.1);color:#818cf8;padding:2px 8px;border-radius:6px;text-decoration:none;cursor:pointer" onmouseover="this.style.background='rgba(99,102,241,.2)'" onmouseout="this.style.background='rgba(99,102,241,.1)'">${esc(d.system_name)}</a>`;
+  html+=`</div>`;
+  // Footer
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--bdr)">`;
+  html+=`<span style="font-size:10px;color:var(--t3)">${esc(d.author_name||'—')} · ${timeAgo(d.updated_at||d.created_at)}</span>`;
+  html+=`<div style="display:flex;gap:6px;align-items:center">`;
+  if(fc)html+=`<span style="font-size:10px;color:var(--t3);">${IC.file} ${fc}</span>`;
+  if(d.has_password)html+=`<span style="font-size:10px;color:var(--t3)">${IC.lock_sm}</span>`;
+  html+=`</div></div>`;
+  html+=`</div>`;
 });
 if(!docs.length)html+='<div class="empty" style="grid-column:1/-1"><p>Nenhuma documentação encontrada</p></div>';
 html+='</div>';
-document.getElementById('docs-content').innerHTML=html;
+dc.innerHTML=html;
 }
 
 async function openDoc(id,pw){
+const dc=document.getElementById('docs-content');if(!dc)return;
 const params={id};if(pw)params.password=pw;
 const d=await api('doc',{params});
-if(!d||d.error)return showToast(d?.error||'Erro');
+if(!d||d.error)return showToast(d?.error||'Erro ao carregar');
 if(d.locked){
-  const inputPw=prompt('Esta documentação é protegida por senha.\nDigite a senha:');
-  if(inputPw===null)return;
-  return openDoc(id,inputPw);
+  const mid='doc-pw-modal';document.getElementById(mid)?.remove();
+  document.body.insertAdjacentHTML('beforeend',`<div id="${mid}" style="position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:9999" onclick="if(event.target===this){this.remove();loadDocs()}">
+    <div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:20px;padding:32px 28px 28px;width:360px;box-shadow:0 32px 80px rgba(0,0,0,.4)" onclick="event.stopPropagation()">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:16px;background:var(--bg3);margin-bottom:12px">${IC.lock_lg}</div>
+        <div style="font-weight:600;font-size:15px;color:var(--t1)">Documentação protegida</div>
+        <div style="font-size:12px;color:var(--t3);margin-top:4px">Digite a senha para acessar</div>
+      </div>
+      <div id="doc-pw-error" style="display:none;font-size:11px;color:var(--err);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:8px 12px;margin-bottom:12px;text-align:center">Senha incorreta. Tente novamente.</div>
+      <input type="password" id="doc-pw-input" class="fsel" placeholder="Senha de acesso" style="width:100%;box-sizing:border-box;margin-bottom:16px" autofocus>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g" style="flex:1" onclick="document.getElementById('${mid}').remove();loadDocs()">Cancelar</button>
+        <button class="btn btn-p" style="flex:2" id="doc-pw-ok">Acessar</button>
+      </div>
+    </div></div>`);
+  const input=document.getElementById('doc-pw-input');
+  const ok=document.getElementById('doc-pw-ok');
+  const doAccess=async()=>{
+    const v=input.value.trim();if(!v){input.focus();return;}
+    ok.disabled=true;ok.textContent='...';
+    const result=await api('doc',{params:{id,password:v}});
+    if(result&&!result.locked&&!result.error){document.getElementById(mid)?.remove();openDoc(id,v);}
+    else{
+      const errEl=document.getElementById('doc-pw-error');if(errEl)errEl.style.display='block';
+      input.value='';input.style.borderColor='rgba(239,68,68,.6)';
+      setTimeout(()=>{if(input)input.style.borderColor='';},2000);
+      ok.disabled=false;ok.textContent='Acessar';input.focus();
+    }
+  };
+  ok.onclick=doAccess;
+  input.onkeydown=e=>{if(e.key==='Enter')doAccess();if(e.key==='Escape'){document.getElementById(mid)?.remove();loadDocs();}};
+  setTimeout(()=>input.focus(),50);
+  return;
 }
-let html='<div class="doc-viewer">';
-html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
-html+='<div><h3 style="font-size:16px;margin-bottom:4px">'+esc(d.title)+'</h3>';
-html+='<span class="dc-cat">'+esc(d.category||'Geral')+'</span>';
-if(d.system_name)html+=' <span style="font-size:10px;color:var(--t3)">· '+esc(d.system_name)+'</span>';
-html+='<div style="font-size:10px;color:var(--t3);margin-top:4px">Por '+esc(d.author_name||'—')+' · '+fmtDT(d.updated_at||d.created_at)+'</div></div>';
-html+='<div style="display:flex;gap:6px">';
+const fIcons={pdf:'📄',doc:'📝',docx:'📝',xls:'📊',xlsx:'📊',ppt:'📊',pptx:'📊',png:'🖼',jpg:'🖼',jpeg:'🖼',gif:'🖼',zip:'🗜',rar:'🗜',txt:'📋',md:'📋',csv:'📊'};
+let html='<div>';
+// Header bar
+html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:12px">';
+html+='<div style="flex:1">';
+html+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">';
+html+='<span style="font-size:9px;background:var(--bg3);color:var(--t2);padding:2px 8px;border-radius:6px;font-weight:500">'+esc(d.category||'Geral')+'</span>';
+if(d.system_name)html+='<a href="#" onclick="event.preventDefault();openSystemDetail('+d.system_id+')" style="font-size:9px;background:rgba(99,102,241,.1);color:#818cf8;padding:2px 8px;border-radius:6px;text-decoration:none;cursor:pointer" onmouseover="this.style.background=\'rgba(99,102,241,.2)\'" onmouseout="this.style.background=\'rgba(99,102,241,.1)\'">'+esc(d.system_name)+'</a>';
+if(d.has_password)html+='<span style="font-size:10px;color:var(--t3);display:inline-flex;align-items:center;gap:3px">'+IC.lock_sm+' Protegido</span>';
+html+='<span style="font-size:10px;color:var(--t3)">'+esc(d.author_name||'—')+' · '+fmtDT(d.updated_at||d.created_at)+'</span>';
+html+='</div>';
+html+='<h2 style="font-size:17px;font-weight:700;color:var(--t1);margin:0">'+esc(d.title)+'</h2>';
+html+='</div>';
+html+='<div style="display:flex;gap:6px;flex-shrink:0">';
 if(d.created_by==ME.id||IS_ADMIN)html+='<button class="btn btn-g btn-sm" onclick="openDocModal('+d.id+')">'+IC.edit+' Editar</button>';
 if(d.created_by==ME.id||IS_ADMIN)html+='<button class="btn btn-g btn-sm" style="color:var(--err)" onclick="deleteDoc('+d.id+')">'+IC.trash+' Excluir</button>';
-html+='<button class="btn btn-g btn-sm" onclick="loadDocs()">'+IC.x+' Voltar</button>';
+if(d.has_password&&d.password_visible)html+='<button class="btn btn-g btn-sm" style="color:var(--t3);font-family:monospace;font-size:11px" onclick="navigator.clipboard?.writeText(\''+esc(d.password_visible)+'\');showToast(\'Senha copiada!\')">'+IC.lock_sm+' '+esc(d.password_visible)+'</button>';
+html+='<button class="btn btn-g btn-sm" onclick="loadDocs()">← Voltar</button>';
 html+='</div></div>';
-if(d.description)html+='<p style="font-size:12px;color:var(--t2);margin-bottom:8px">'+esc(d.description)+'</p>';
-if(d.content)html+='<div class="dv-content">'+esc(d.content)+'</div>';
+// Description
+if(d.description)html+='<p style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px 14px;background:var(--bg3);border-radius:10px;border-left:3px solid var(--acc)">'+esc(d.description)+'</p>';
+// Content
+if(d.content)html+='<div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:12px;padding:20px;margin-bottom:16px;font-size:13px;line-height:1.8;white-space:pre-wrap;font-family:\'JetBrains Mono\',monospace;color:var(--t1)">'+esc(d.content)+'</div>';
+// Files
 if(d.files&&d.files.length){
-  html+='<div style="margin-top:12px"><div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:6px">ARQUIVOS</div><div class="dv-files">';
-  d.files.forEach(f=>{html+='<a href="uploads/docs/'+f.filename+'" target="_blank" class="dv-file">'+IC.clipboard+' '+esc(f.original_name)+'<span style="color:var(--t3);font-size:9px">'+(f.file_size>1024*1024?(f.file_size/1024/1024).toFixed(1)+'MB':(f.file_size/1024).toFixed(0)+'KB')+'</span></a>'});
+  html+='<div style="margin-top:4px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">'+IC.file+' Arquivos ('+d.files.length+')</div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">';
+  d.files.forEach(f=>{const ext=f.original_name.split('.').pop().toLowerCase();const sz=f.file_size>1048576?(f.file_size/1048576).toFixed(1)+'MB':(f.file_size/1024).toFixed(0)+'KB';
+    html+='<a href="docs_api.php?action=doc_file_download&id='+f.id+'" target="_blank" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:10px;text-decoration:none;border:1px solid var(--bdr);transition:.15s" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bdr)\'"><span style="font-size:20px">'+(fIcons[ext]||'📎')+'</span><div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.original_name)+'</div><div style="font-size:10px;color:var(--t3)">'+sz+'</div></div></a>';
+  });
+  
   html+='</div></div>';
 }
 html+='</div>';
-document.getElementById('docs-content').innerHTML=html;
+dc.innerHTML=html;
+}
+
+let _pendingFiles=[];
+function previewPendingFiles(){
+const input=document.getElementById('doc-file-input-new');if(!input)return;
+_pendingFiles=[..._pendingFiles,...input.files];
+const list=document.getElementById('doc-files-pending-list');if(!list)return;
+const fIcons={pdf:'📄',doc:'📝',docx:'📝',xls:'📊',xlsx:'📊',ppt:'📊',pptx:'📊',png:'🖼',jpg:'🖼',jpeg:'🖼',gif:'🖼',zip:'🗜',rar:'🗜',txt:'📋',md:'📋',csv:'📊'};
+list.innerHTML=_pendingFiles.length?_pendingFiles.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg3);border-radius:8px;margin-bottom:4px"><span style="font-size:16px">${fIcons[f.name.split('.').pop().toLowerCase()]||'📎'}</span><span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span style="font-size:10px;color:var(--t3)">${f.size>1048576?(f.size/1048576).toFixed(1)+'MB':(f.size/1024).toFixed(0)+'KB'}</span><button class="btn btn-g btn-sm" style="color:var(--err);padding:2px 6px" onclick="_pendingFiles.splice(${i},1);previewPendingFiles()">✕</button></div>`).join(''):'';
+input.value='';
+}
+
+function renderDocFilesList(files,docId){
+const fl=document.getElementById('doc-files-list');if(!fl)return;
+const fIcons={pdf:'📄',doc:'📝',docx:'📝',xls:'📊',xlsx:'📊',ppt:'📊',pptx:'📊',png:'🖼',jpg:'🖼',jpeg:'🖼',gif:'🖼',zip:'🗜',rar:'🗜',txt:'📋',md:'📋',csv:'📊'};
+if(!files.length){fl.innerHTML='<p style="font-size:11px;color:var(--t3);padding:6px 0">Nenhum arquivo ainda.</p>';return;}
+fl.innerHTML=files.map(f=>{const ext=f.original_name.split('.').pop().toLowerCase();const sz=f.file_size>1048576?(f.file_size/1048576).toFixed(1)+'MB':(f.file_size/1024).toFixed(0)+'KB';
+return`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg3);border-radius:8px;margin-bottom:4px"><span style="font-size:18px">${fIcons[ext]||'📎'}</span><a href="docs_api.php?action=doc_file_download&id=${f.id}" target="_blank" style="flex:1;font-size:12px;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.original_name)}</a><span style="font-size:10px;color:var(--t3);white-space:nowrap">${sz}</span><button class="btn btn-g btn-sm" style="color:var(--err);padding:2px 8px;flex-shrink:0" onclick="deleteDocFile(${f.id},${docId})">✕</button></div>`;
+}).join('');
+}
+
+async function uploadDocFiles(docId){
+const input=document.getElementById('doc-file-input'),status=document.getElementById('doc-upload-status');
+if(!input||!input.files.length)return;
+const files=[...input.files];if(status)status.textContent='Enviando...';
+let ok=0,fail=0;
+for(const file of files){const fd=new FormData();fd.append('file',file);try{const r=await api('doc_upload',{formData:fd,params:{id:docId}});if(r?.success)ok++;else{fail++;console.error('Upload error:',r?.error);}}catch(e){fail++;}}
+input.value='';if(ok)showToast('✓ '+ok+' arquivo(s) enviado(s)!');if(fail)showToast('⚠ '+fail+' falha(s)');if(status)status.textContent='';
+const dd=await api('doc',{params:{id:docId}});renderDocFilesList(dd?.files||[],docId);
+}
+
+async function deleteDocFile(fileId,docId){
+if(!confirm('Remover este arquivo?'))return;
+const r=await api('doc_file_delete',{method:'DELETE',params:{id:fileId}});
+if(r?.success){showToast('Arquivo removido');const dd=await api('doc',{params:{id:docId}});renderDocFilesList(dd?.files||[],docId);}
+else showToast('Erro: '+(r?.error||''));
 }
 
 function openDocModal(editId){
+const dc=document.getElementById('docs-content');if(!dc)return;
+_pendingFiles=[];
 const isEdit=!!editId;
-let html='<div style="padding:20px"><h3>'+(isEdit?'Editar':'Nova')+' Documentação</h3>';
+// ALL accepted file types
+const accepted='.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.png,.jpg,.jpeg,.gif,.webp,.svg,.zip,.rar,.7z,.mp4,.mp3,.json,.xml,.html,.css,.js,.php,.py,.sql,.log';
+let html='<div style="max-width:820px">';
+html+=`<h3 style="margin-bottom:20px;font-size:15px;color:var(--t1)">${isEdit?'✏️ Editar':'📄 Nova'} Documentação</h3>`;
 html+='<div class="fg"><label>Título *</label><input class="fsel" id="doc-title" placeholder="Título do documento"></div>';
-html+='<div class="fg"><label>Descrição</label><input class="fsel" id="doc-desc" placeholder="Breve descrição"></div>';
-html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+html+='<div class="fg"><label>Descrição</label><input class="fsel" id="doc-desc" placeholder="Breve resumo da documentação"></div>';
+html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
 html+='<div class="fg"><label>Sistema</label><select class="fsel" id="doc-sys"><option value="">Nenhum</option>'+(allSystems||[]).map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('')+'</select></div>';
-html+='<div class="fg"><label>Categoria</label><input class="fsel" id="doc-cat" placeholder="Ex: Manual, API, Deploy" value="Geral"></div>';
+html+='<div class="fg"><label>Categoria</label><input class="fsel" id="doc-cat" value="Geral" placeholder="Manual, API, Deploy..."></div>';
 html+='</div>';
-html+='<div class="fg"><label>Conteúdo</label><textarea class="fsel" id="doc-content" rows="10" placeholder="Conteúdo completo da documentação..." style="font-family:\'JetBrains Mono\',monospace;font-size:12px"></textarea></div>';
-html+='<div class="fg"><label>Senha de proteção (opcional)</label><input type="password" class="fsel" id="doc-pw" placeholder="Deixe vazio para acesso livre"></div>';
-html+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">';
+html+='<div class="fg"><label>Conteúdo</label><textarea class="fsel" id="doc-content" rows="12" placeholder="Conteúdo..." style="font-family:\'JetBrains Mono\',monospace;font-size:12px;resize:vertical;line-height:1.7"></textarea></div>';
+html+='<div class="fg"><label style="display:flex;align-items:center;gap:5px">'+IC.lock_sm+' Senha de proteção <span style="font-weight:400;color:var(--t3)">(opcional)</span></label>';
+html+='<div style="display:flex;align-items:center;gap:8px"><input type="password" class="fsel" id="doc-pw" placeholder="Deixe vazio para acesso livre" style="flex:1">';
+html+='<button type="button" onclick="const i=document.getElementById(\'doc-pw\');i.type=i.type===\'password\'?\'text\':\'password\'" style="height:42px;padding:0 14px;background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;cursor:pointer;font-size:14px;flex-shrink:0;color:var(--t2)">👁</button></div>';
+html+='<div id="doc-pw-hint" style="display:none;font-size:10px;color:var(--t3);margin-top:4px;background:var(--bg3);padding:4px 8px;border-radius:6px;font-family:monospace"></div></div>';
+html+='<div class="fg"><label style="display:flex;align-items:center;gap:5px">'+IC.file+' Arquivos <span style="font-weight:400;color:var(--t3)">(qualquer tipo)</span></label>';
+if(isEdit){
+  html+='<div id="doc-files-list" style="margin-bottom:8px"></div>';
+  html+='<label style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--bg3);border:1px dashed var(--bdr);border-radius:10px;cursor:pointer;font-size:12px;color:var(--t2);transition:.2s" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bdr)\'">'+IC.file+' Adicionar arquivo<input type="file" id="doc-file-input" multiple accept="'+accepted+'" style="display:none" onchange="uploadDocFiles('+editId+')"></label>';
+  html+='<span id="doc-upload-status" style="font-size:11px;color:var(--t3);margin-left:8px"></span>';
+}else{
+  html+='<div id="doc-files-pending-list" style="margin-bottom:8px"></div>';
+  html+='<label style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--bg3);border:1px dashed var(--bdr);border-radius:10px;cursor:pointer;font-size:12px;color:var(--t2);transition:.2s" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bdr)\'">'+IC.file+' Selecionar arquivos<input type="file" id="doc-file-input-new" multiple accept="'+accepted+'" style="display:none" onchange="previewPendingFiles()"></label>';
+  html+='<p style="font-size:10px;color:var(--t3);margin-top:6px">Enviados automaticamente após salvar.</p>';
+}
+html+='</div>';
+html+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--bdr)">';
 html+='<button class="btn btn-g" onclick="loadDocs()">Cancelar</button>';
-html+='<button class="btn btn-p" onclick="saveDoc('+(editId||'null')+')">Salvar</button>';
+html+=`<button class="btn btn-p" onclick="saveDoc(${editId||'null'})">✓ Salvar</button>`;
 html+='</div></div>';
-document.getElementById('docs-content').innerHTML=html;
-if(isEdit){api('doc',{params:{id:editId}}).then(d=>{if(d&&!d.locked){document.getElementById('doc-title').value=d.title||'';document.getElementById('doc-desc').value=d.description||'';document.getElementById('doc-sys').value=d.system_id||'';document.getElementById('doc-cat').value=d.category||'';document.getElementById('doc-content').value=d.content||''}})}
+dc.innerHTML=html;
+if(isEdit){api('doc',{params:{id:editId}}).then(d=>{if(!d||d.error)return;if(!d.locked){document.getElementById('doc-title').value=d.title||'';document.getElementById('doc-desc').value=d.description||'';const sysSel=document.getElementById('doc-sys');if(sysSel)sysSel.value=d.system_id||'';document.getElementById('doc-cat').value=d.category||'';document.getElementById('doc-content').value=d.content||'';if(d.password_visible){const pw=document.getElementById('doc-pw');if(pw)pw.value=d.password_visible;const hint=document.getElementById('doc-pw-hint');if(hint){hint.textContent='Senha atual: '+d.password_visible;hint.style.display='block';}}}renderDocFilesList(d.files||[],editId);});}
 }
 
 async function saveDoc(editId){
 const body={title:document.getElementById('doc-title').value.trim(),description:document.getElementById('doc-desc').value.trim(),content:document.getElementById('doc-content').value,system_id:document.getElementById('doc-sys').value||null,category:document.getElementById('doc-cat').value.trim()||'Geral',password:document.getElementById('doc-pw').value};
 if(!body.title)return showToast('Título obrigatório');
 const r=editId?await api('doc',{method:'PUT',params:{id:editId},body}):await api('docs',{method:'POST',body});
-if(r?.success){showToast(IC.check+' Documentação salva!');loadDocs()}else showToast(r?.error||'Erro');
+if(r?.success){
+  showToast('✓ Documentação salva!');
+  if(!editId&&r.id&&typeof _pendingFiles!=='undefined'&&_pendingFiles.length){
+    for(const file of _pendingFiles){const fd=new FormData();fd.append('file',file);await api('doc_upload',{formData:fd,params:{id:r.id}});}
+    _pendingFiles=[];
+  }
+  loadDocs();
+}else showToast(r?.error||'Erro ao salvar');
 }
 
 async function deleteDoc(id){if(!confirm('Excluir documentação?'))return;const r=await api('doc',{method:'DELETE',params:{id}});if(r?.success){showToast(IC.check+' Excluída!');loadDocs()}}
@@ -1886,7 +2010,7 @@ html+='<div id="sys-docs" style="display:none"><div style="max-height:300px;over
 if(!(d.docs||[]).length)html+='<div class="empty"><p>Nenhuma documentação</p></div>';
 html+='</div></div>';
 html+='</div>';
-document.getElementById('m-detail').querySelector('.modal-body').innerHTML=html;
+const _mb=document.getElementById('det-body');if(_mb)_mb.innerHTML=html;
 openM('m-detail');
 }
 

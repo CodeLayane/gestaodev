@@ -1,6 +1,7 @@
 <?php
+ob_start();
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
 require_once __DIR__.'/config.php';
@@ -54,13 +55,14 @@ if(empty($_SESSION['_migrated'])){
     // === New tables: docs, surveys, departments ===
     $newTables=[
         "CREATE TABLE IF NOT EXISTS departments (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(200) NOT NULL, description TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-        "CREATE TABLE IF NOT EXISTS documentations (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(300) NOT NULL, description TEXT, content LONGTEXT, system_id INT DEFAULT NULL, category VARCHAR(100) DEFAULT 'Geral', password VARCHAR(255) DEFAULT NULL, created_by INT NOT NULL, updated_by INT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE SET NULL, FOREIGN KEY (created_by) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-        "CREATE TABLE IF NOT EXISTS doc_files (id INT AUTO_INCREMENT PRIMARY KEY, doc_id INT NOT NULL, filename VARCHAR(255) NOT NULL, original_name VARCHAR(255) NOT NULL, file_size INT DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (doc_id) REFERENCES documentations(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-        "CREATE TABLE IF NOT EXISTS surveys (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(300) NOT NULL, description TEXT, type ENUM('single','multiple','rating') DEFAULT 'single', active TINYINT(1) DEFAULT 1, anonymous TINYINT(1) DEFAULT 0, created_by INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME DEFAULT NULL, FOREIGN KEY (created_by) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS documentations (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(300) NOT NULL, description TEXT, content LONGTEXT, system_id INT DEFAULT NULL, category VARCHAR(100) DEFAULT 'Geral', password VARCHAR(255) DEFAULT NULL, password_plain VARCHAR(255) DEFAULT NULL, created_by INT NOT NULL, updated_by INT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS doc_files (id INT AUTO_INCREMENT PRIMARY KEY, doc_id INT NOT NULL, filename VARCHAR(255) NOT NULL, original_name VARCHAR(255) NOT NULL, file_size BIGINT DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS surveys (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(300) NOT NULL, description TEXT, type ENUM('single','multiple','rating') DEFAULT 'single', active TINYINT(1) DEFAULT 1, anonymous TINYINT(1) DEFAULT 0, created_by INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME DEFAULT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS survey_options (id INT AUTO_INCREMENT PRIMARY KEY, survey_id INT NOT NULL, label VARCHAR(300) NOT NULL, sort_order INT DEFAULT 0, FOREIGN KEY (survey_id) REFERENCES surveys(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS survey_votes (id INT AUTO_INCREMENT PRIMARY KEY, survey_id INT NOT NULL, option_id INT NOT NULL, user_id INT NOT NULL, rating INT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (survey_id) REFERENCES surveys(id) ON DELETE CASCADE, FOREIGN KEY (option_id) REFERENCES survey_options(id) ON DELETE CASCADE, UNIQUE KEY uq_vote (survey_id, user_id, option_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     ];
     foreach($newTables as $sql){try{$db->exec($sql);}catch(\Exception $e){}}
+    try{$db->exec("ALTER TABLE documentations ADD COLUMN password_plain VARCHAR(255) DEFAULT NULL");}catch(\Exception $e){}
     // Add department_id to users if missing
     try{$db->exec("ALTER TABLE users ADD COLUMN department_id INT DEFAULT NULL");}catch(\Exception $e){}
 
@@ -281,87 +283,137 @@ if($act==='department'&&isset($_GET['id'])){
 }
 
 // ===== DOCUMENTATIONS =====
+if($act==='docs'||$act==='doc'||$act==='doc_upload'||$act==='doc_file_delete'){
+    try{
+        $db->exec("CREATE TABLE IF NOT EXISTS documentations (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(300) NOT NULL, description TEXT, content LONGTEXT, system_id INT DEFAULT NULL, category VARCHAR(100) DEFAULT 'Geral', password VARCHAR(255) DEFAULT NULL, password_plain VARCHAR(255) DEFAULT NULL, created_by INT NOT NULL, updated_by INT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $db->exec("CREATE TABLE IF NOT EXISTS doc_files (id INT AUTO_INCREMENT PRIMARY KEY, doc_id INT NOT NULL, filename VARCHAR(255) NOT NULL, original_name VARCHAR(255) NOT NULL, file_size BIGINT DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $dbN2=DB_NAME;
+        $existCols=$db->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$dbN2' AND TABLE_NAME='documentations'")->fetchAll(PDO::FETCH_COLUMN);
+        foreach(["description TEXT","content LONGTEXT","category VARCHAR(100) DEFAULT 'Geral'","password VARCHAR(255) DEFAULT NULL","password_plain VARCHAR(255) DEFAULT NULL","updated_by INT DEFAULT NULL","system_id INT DEFAULT NULL"] as $colDef){
+            $cn=explode(' ',$colDef)[0];
+            if(!in_array($cn,$existCols)) try{$db->exec("ALTER TABLE documentations ADD COLUMN $colDef");}catch(Exception $e){}
+        }
+    }catch(Exception $e){}
+}
 if($act==='docs'){
     if($method==='GET'){
-        $sysId=$_GET['system_id']??'';
-        $cat=$_GET['category']??'';
-        $sql="SELECT d.*,u.name as author_name,s.name as system_name FROM documentations d LEFT JOIN users u ON d.created_by=u.id LEFT JOIN systems s ON d.system_id=s.id WHERE 1=1";
-        $p=[];
-        if($sysId){$sql.=" AND d.system_id=?";$p[]=$sysId;}
-        if($cat){$sql.=" AND d.category=?";$p[]=$cat;}
-        $sql.=" ORDER BY d.updated_at DESC";
-        $s=$db->prepare($sql);$s->execute($p);
-        $docs=$s->fetchAll();
-        // Mark which ones have password (don't send actual password)
-        foreach($docs as &$doc){$doc['has_password']=!empty($doc['password']);unset($doc['password']);
-            // Get files
-            $sf=$db->prepare("SELECT id,original_name,file_size,created_at FROM doc_files WHERE doc_id=?");$sf->execute([$doc['id']]);$doc['files']=$sf->fetchAll();
-        }
-        jsonR($docs);
+        try{
+            $sysId=$_GET['system_id']??''; $cat=$_GET['category']??'';
+            $sql="SELECT d.id,d.title,d.description,d.system_id,d.category,d.password,d.password_plain,d.created_by,d.updated_by,d.created_at,d.updated_at,u.name as author_name,s.name as system_name FROM documentations d LEFT JOIN usuarios u ON d.created_by=u.id LEFT JOIN sistemas s ON d.system_id=s.id WHERE 1=1";
+            $p=[];
+            if($sysId){$sql.=" AND d.system_id=?";$p[]=$sysId;}
+            if($cat){$sql.=" AND d.category=?";$p[]=$cat;}
+            $sql.=" ORDER BY d.updated_at DESC";
+            $s=$db->prepare($sql);$s->execute($p);
+            $docs=$s->fetchAll();
+            foreach($docs as &$doc){
+                $doc['has_password']=!empty($doc['password']);
+                unset($doc['password']);
+                if($doc['created_by']!=$UID) unset($doc['password_plain']);
+                try{$sf=$db->prepare("SELECT id,original_name,file_size,created_at FROM doc_files WHERE doc_id=?");$sf->execute([$doc['id']]);$doc['files']=$sf->fetchAll();}catch(Exception $e){$doc['files']=[];}
+            }
+            jsonR($docs);
+        }catch(Exception $e){ jsonR([]); }
     }
     if($method==='POST'){
-        if($IS_USER) jsonR(['error'=>'Sem permissão'],403);
-        $d=json_decode(file_get_contents('php://input'),true);
-        $title=trim($d['title']??'');$desc=trim($d['description']??'');$content=$d['content']??'';
-        $sysId=$d['system_id']?:null;$cat=$d['category']??'Geral';$pw=$d['password']??'';
-        if(!$title) jsonR(['error'=>'Título obrigatório'],400);
-        $pwHash=$pw?password_hash($pw,PASSWORD_BCRYPT):null;
-        $db->prepare("INSERT INTO documentations (title,description,content,system_id,category,password,created_by) VALUES (?,?,?,?,?,?,?)")
-            ->execute([$title,$desc,$content,$sysId,$cat,$pwHash,$UID]);
-        jsonR(['success'=>true,'id'=>$db->lastInsertId()]);
+        try{
+            $d=json_decode(file_get_contents('php://input'),true);
+            $title=trim($d['title']??'');$desc=trim($d['description']??'');$content=$d['content']??'';
+            $sysId=$d['system_id']?:null;$cat=$d['category']??'Geral';$pw=$d['password']??'';
+            if(!$title) jsonR(['error'=>'Título obrigatório'],400);
+            $pwHash=$pw?password_hash($pw,PASSWORD_BCRYPT):null;
+            $pwPlain=$pw?:null;
+            $db->prepare("INSERT INTO documentations (title,description,content,system_id,category,password,password_plain,created_by) VALUES (?,?,?,?,?,?,?,?)")
+                ->execute([$title,$desc,$content,$sysId,$cat,$pwHash,$pwPlain,$UID]);
+            $newId=$db->lastInsertId();
+            logActivity($UID,'Criou documentação','documentation',$newId,'Título: '.$title.($pwPlain?' | Protegida':''));
+            jsonR(['success'=>true,'id'=>$newId]);
+        }catch(Exception $e){ jsonR(['error'=>$e->getMessage()],500); }
     }
 }
 if($act==='doc'&&isset($_GET['id'])){
     $docId=(int)$_GET['id'];
     if($method==='GET'){
-        $s=$db->prepare("SELECT d.*,u.name as author_name,s.name as system_name FROM documentations d LEFT JOIN users u ON d.created_by=u.id LEFT JOIN systems s ON d.system_id=s.id WHERE d.id=?");
-        $s->execute([$docId]);$doc=$s->fetch();
-        if(!$doc) jsonR(['error'=>'Não encontrado'],404);
-        // Check password
-        if(!empty($doc['password'])){
-            $inputPw=$_GET['password']??'';
-            if($doc['created_by']!=$UID && !password_verify($inputPw,$doc['password'])){
-                unset($doc['content']);$doc['locked']=true;
+        try{
+            $s=$db->prepare("SELECT d.*,u.name as author_name,s.name as system_name FROM documentations d LEFT JOIN usuarios u ON d.created_by=u.id LEFT JOIN sistemas s ON d.system_id=s.id WHERE d.id=?");
+            $s->execute([$docId]);$doc=$s->fetch();
+            if(!$doc) jsonR(['error'=>'Não encontrado'],404);
+            if(!empty($doc['password'])){
+                $inputPw=$_GET['password']??'';
+                if($doc['created_by']==$UID||$IS_ADMIN){$doc['locked']=false;$doc['password_visible']=$doc['password_plain']??null;}
+                elseif(!password_verify($inputPw,$doc['password'])){unset($doc['content']);$doc['locked']=true;}
+                else{$doc['locked']=false;}
             }else{$doc['locked']=false;}
-        }else{$doc['locked']=false;}
-        $doc['has_password']=!empty($doc['password']);unset($doc['password']);
-        $sf=$db->prepare("SELECT id,original_name,filename,file_size,created_at FROM doc_files WHERE doc_id=?");$sf->execute([$docId]);$doc['files']=$sf->fetchAll();
-        jsonR($doc);
+            $doc['has_password']=!empty($doc['password']);unset($doc['password']);unset($doc['password_plain']);
+            try{$sf=$db->prepare("SELECT id,original_name,filename,file_size,created_at FROM doc_files WHERE doc_id=?");$sf->execute([$docId]);$doc['files']=$sf->fetchAll();}catch(Exception $e){$doc['files']=[];}
+            jsonR($doc);
+        }catch(Exception $e){ jsonR(['error'=>$e->getMessage()],500); }
     }
     if($method==='PUT'){
-        $d=json_decode(file_get_contents('php://input'),true);
-        $sets=[];$params=[];
-        if(isset($d['title'])){$sets[]='title=?';$params[]=$d['title'];}
-        if(isset($d['description'])){$sets[]='description=?';$params[]=$d['description'];}
-        if(isset($d['content'])){$sets[]='content=?';$params[]=$d['content'];}
-        if(isset($d['system_id'])){$sets[]='system_id=?';$params[]=$d['system_id']?:null;}
-        if(isset($d['category'])){$sets[]='category=?';$params[]=$d['category'];}
-        if(array_key_exists('password',$d)){$sets[]='password=?';$params[]=$d['password']?password_hash($d['password'],PASSWORD_BCRYPT):null;}
-        $sets[]='updated_by=?';$params[]=$UID;$params[]=$docId;
-        $db->prepare("UPDATE documentations SET ".implode(',',$sets)." WHERE id=?")->execute($params);
-        jsonR(['success'=>true]);
+        try{
+            $d=json_decode(file_get_contents('php://input'),true);
+            $sets=[];$params=[];
+            if(isset($d['title'])){$sets[]='title=?';$params[]=$d['title'];}
+            if(isset($d['description'])){$sets[]='description=?';$params[]=$d['description'];}
+            if(isset($d['content'])){$sets[]='content=?';$params[]=$d['content'];}
+            if(isset($d['system_id'])){$sets[]='system_id=?';$params[]=$d['system_id']?:null;}
+            if(isset($d['category'])){$sets[]='category=?';$params[]=$d['category'];}
+            if(array_key_exists('password',$d)){
+                $sets[]='password=?';$params[]=$d['password']?password_hash($d['password'],PASSWORD_BCRYPT):null;
+                $sets[]='password_plain=?';$params[]=$d['password']?:null;
+            }
+            if($sets){$sets[]='updated_by=?';$params[]=$UID;$params[]=$docId;
+                $db->prepare("UPDATE documentations SET ".implode(',',$sets)." WHERE id=?")->execute($params);}
+            logActivity($UID,'Editou documentação','documentation',$docId,'ID: '.$docId);
+            jsonR(['success'=>true]);
+        }catch(Exception $e){ jsonR(['error'=>$e->getMessage()],500); }
     }
     if($method==='DELETE'){
-        $db->prepare("DELETE FROM documentations WHERE id=?")->execute([$docId]);
-        jsonR(['success'=>true]);
+        try{
+            $dt=$db->prepare("SELECT title,created_by FROM documentations WHERE id=?");$dt->execute([$docId]);$dtR=$dt->fetch();
+            if($dtR&&$dtR['created_by']!=$UID&&!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
+            $db->prepare("DELETE FROM documentations WHERE id=?")->execute([$docId]);
+            $db->prepare("DELETE FROM doc_files WHERE doc_id=?")->execute([$docId]);
+            logActivity($UID,'Excluiu documentação','documentation',$docId,'Título: '.($dtR['title']??'N/A'));
+            jsonR(['success'=>true]);
+        }catch(Exception $e){ jsonR(['error'=>$e->getMessage()],500); }
     }
 }
 if($act==='doc_upload'&&isset($_GET['id'])){
     $docId=(int)$_GET['id'];
     if(!empty($_FILES['file'])){
-        $f=$_FILES['file'];$ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));
-        $allowed=['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','png','jpg','jpeg','gif','zip','rar','csv'];
-        if(!in_array($ext,$allowed)) jsonR(['error'=>'Tipo não permitido'],400);
-        if($f['size']>20*1024*1024) jsonR(['error'=>'Máximo 20MB'],400);
-        $dir=__DIR__.'/uploads/docs/';if(!is_dir($dir))@mkdir($dir,0755,true);
-        $fn=bin2hex(random_bytes(16)).'.'.$ext;
-        move_uploaded_file($f['tmp_name'],$dir.$fn);
-        $db->prepare("INSERT INTO doc_files (doc_id,filename,original_name,file_size) VALUES (?,?,?,?)")
-            ->execute([$docId,$fn,$f['name'],$f['size']]);
-        jsonR(['success'=>true]);
-    }
+        try{
+            $f=$_FILES['file'];
+            if($f['error']!==UPLOAD_ERR_OK) jsonR(['error'=>'Erro upload: '.$f['error']],400);
+            $ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));
+            $allowed=['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','png','jpg','jpeg','gif','zip','rar','csv'];
+            if(!in_array($ext,$allowed)) jsonR(['error'=>'Tipo não permitido'],400);
+            if($f['size']>20*1024*1024) jsonR(['error'=>'Máximo 20MB'],400);
+            $dir=__DIR__.'/uploads/docs/';
+            if(!is_dir($dir)) mkdir($dir,0755,true);
+            $fn=bin2hex(random_bytes(16)).'.'.$ext;
+            if(!move_uploaded_file($f['tmp_name'],$dir.$fn)) jsonR(['error'=>'Falha ao mover'],500);
+            $db->prepare("INSERT INTO doc_files (doc_id,filename,original_name,file_size) VALUES (?,?,?,?)")
+                ->execute([$docId,$fn,$f['name'],$f['size']]);
+            $fid=$db->lastInsertId();
+            logActivity($UID,'Upload em documentação','documentation',$docId,$f['name']);
+            jsonR(['success'=>true,'file'=>['id'=>$fid,'filename'=>$fn,'original_name'=>$f['name'],'file_size'=>$f['size']]]);
+        }catch(Exception $e){ jsonR(['error'=>$e->getMessage()],500); }
+    } else { jsonR(['error'=>'Nenhum arquivo'],400); }
 }
-
+if($act==='doc_file_delete'&&isset($_GET['id'])){
+    try{
+        $fid=(int)$_GET['id'];
+        $df=$db->prepare("SELECT df.*,d.created_by FROM doc_files df JOIN documentations d ON df.doc_id=d.id WHERE df.id=?");
+        $df->execute([$fid]);$dfR=$df->fetch();
+        if(!$dfR) jsonR(['error'=>'Não encontrado'],404);
+        if($dfR['created_by']!=$UID&&!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
+        @unlink(__DIR__.'/uploads/docs/'.$dfR['filename']);
+        $db->prepare("DELETE FROM doc_files WHERE id=?")->execute([$fid]);
+        logActivity($UID,'Removeu arquivo','documentation',$dfR['doc_id'],$dfR['original_name']);
+        jsonR(['success'=>true]);
+    }catch(Exception $e){ jsonR(['error'=>$e->getMessage()],500); }
+}
 // ===== SURVEYS =====
 if($act==='surveys'){
     if($method==='GET'){
@@ -433,22 +485,7 @@ if($act==='reports'&&($_GET['type']??'')==='by_department'){
     jsonR($s->fetchAll());
 }
 
-// ===== SYSTEM DETAIL WITH HISTORY =====
-if($act==='system_detail'&&isset($_GET['id'])){
-    $sid=(int)$_GET['id'];
-    $s=$db->prepare("SELECT * FROM systems WHERE id=?");$s->execute([$sid]);$sys=$s->fetch();
-    if(!$sys) jsonR(['error'=>'Sistema não encontrado'],404);
-    // Demands
-    $sd=$db->prepare("SELECT d.id,d.title,d.status,d.priority,d.created_at,d.completed_at FROM demands d WHERE d.system_id=? ORDER BY d.created_at DESC LIMIT 50");
-    $sd->execute([$sid]);$sys['demands']=$sd->fetchAll();
-    // Docs
-    $dd=$db->prepare("SELECT id,title,category,has_password,created_at FROM (SELECT id,title,category,IF(password IS NOT NULL AND password!='',1,0) as has_password,created_at FROM documentations WHERE system_id=?) t ORDER BY created_at DESC");
-    try{$dd->execute([$sid]);$sys['docs']=$dd->fetchAll();}catch(\Exception $e){$sys['docs']=[];}
-    // Stats
-    $ss=$db->prepare("SELECT COUNT(*) as total,SUM(CASE WHEN status='Concluída' THEN 1 ELSE 0 END) as done,SUM(CASE WHEN status NOT IN('Concluída','Cancelada') THEN 1 ELSE 0 END) as active FROM demands WHERE system_id=?");
-    $ss->execute([$sid]);$sys['stats']=$ss->fetch();
-    jsonR($sys);
-}
+// [REMOVED] orphaned code block that was causing 500 errors
 
         $s->execute([$id]); $dm=$s->fetch(); if(!$dm) jsonR(['error'=>'Não encontrada'],404);
 
@@ -735,6 +772,119 @@ if($act==='demand_upload'&&isset($_GET['id'])){
     jsonR(['success'=>true,'filename'=>$fn]);
 }
 
+
+// ── SYSTEM DETAIL (comprehensive) ────────────────────────────────────────
+if ($act === 'system_detail' && isset($_GET['id'])) {
+    try {
+        $sysId = (int)$_GET['id'];
+
+        // System info
+        $st = $db->prepare("SELECT s.*,
+            GROUP_CONCAT(DISTINCT u.name ORDER BY u.name SEPARATOR ', ') as dev_names,
+            GROUP_CONCAT(DISTINCT u.avatar_color ORDER BY u.name SEPARATOR ',') as dev_colors,
+            GROUP_CONCAT(DISTINCT IFNULL(u.avatar_file,'') ORDER BY u.name SEPARATOR ',') as dev_avatars,
+            GROUP_CONCAT(DISTINCT IFNULL(u.role,'dev') ORDER BY u.name SEPARATOR '|') as dev_roles,
+            GROUP_CONCAT(DISTINCT u.id ORDER BY u.name SEPARATOR ',') as dev_ids
+            FROM sistemas s
+            LEFT JOIN devs_sistemas sd ON s.id = sd.system_id
+            LEFT JOIN usuarios u ON sd.user_id = u.id
+            WHERE s.id = ?
+            GROUP BY s.id");
+        $st->execute([$sysId]);
+        $sys = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$sys) jsonR(['error' => 'Sistema não encontrado'], 404);
+
+        // Demands with dev info
+        $stD = $db->prepare("SELECT d.id, d.title, d.status, d.priority, d.deadline, d.start_date,
+            d.created_at, d.completed_at, d.requester,
+            d.needs_presidency_approval, d.presidency_status
+            FROM demandas d WHERE d.system_id = ? ORDER BY d.created_at DESC");
+        $stD->execute([$sysId]);
+        $demands = $stD->fetchAll(PDO::FETCH_ASSOC);
+
+        // Enrich demands with devs
+        foreach ($demands as &$dem) {
+            $stDv = $db->prepare("SELECT dd.user_id, u.name, u.avatar_color, u.avatar_file, u.role, dd.acceptance
+                FROM devs_demandas dd JOIN usuarios u ON dd.user_id = u.id WHERE dd.demand_id = ?");
+            $stDv->execute([$dem['id']]);
+            $dem['devs'] = $stDv->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        // Docs
+        $stDoc = $db->prepare("SELECT d.id, d.title, d.description, d.category, d.password, d.created_at, d.updated_at,
+            u.name as author_name,
+            (SELECT COUNT(*) FROM doc_files df WHERE df.doc_id = d.id) as file_count
+            FROM documentations d
+            LEFT JOIN usuarios u ON d.created_by = u.id
+            WHERE d.system_id = ? ORDER BY d.updated_at DESC");
+        $stDoc->execute([$sysId]);
+        $docs = $stDoc->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($docs as &$doc) {
+            $doc['has_password'] = !empty($doc['password']);
+            unset($doc['password']);
+        }
+
+        // History (activities related to demands in this system)
+        $history = [];
+        try {
+            $stH = $db->prepare("SELECT h.*, u.name as user_name, d.title as demand_title
+                FROM registro_atividades h
+                LEFT JOIN usuarios u ON h.user_id = u.id
+                LEFT JOIN demandas d ON h.entity_type = 'demand' AND h.entity_id = d.id
+                WHERE (h.entity_type = 'demand' AND h.entity_id IN (SELECT id FROM demandas WHERE system_id = ?))
+                   OR (h.entity_type = 'documentation' AND h.entity_id IN (SELECT id FROM documentations WHERE system_id = ?))
+                   OR (h.entity_type = 'system' AND h.entity_id = ?)
+                ORDER BY h.created_at DESC
+                LIMIT 100");
+            $stH->execute([$sysId, $sysId, $sysId]);
+            $history = $stH->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) { $history = []; }
+
+        // Stats
+        $total = count($demands);
+        $done = count(array_filter($demands, fn($d) => $d['status'] === 'Concluída'));
+        $active = count(array_filter($demands, fn($d) => in_array($d['status'], ['Em Andamento', 'Em Revisão', 'Aguardando Aceite'])));
+        $urgent = count(array_filter($demands, fn($d) => $d['priority'] === 'Urgente' && !in_array($d['status'], ['Concluída', 'Cancelada'])));
+
+        // Average days to complete
+        $avgDays = null;
+        $completedWithDates = array_filter($demands, fn($d) => $d['status'] === 'Concluída' && $d['completed_at'] && $d['created_at']);
+        if (count($completedWithDates) > 0) {
+            $totalDays = 0;
+            foreach ($completedWithDates as $cd) {
+                $totalDays += (strtotime($cd['completed_at']) - strtotime($cd['created_at'])) / 86400;
+            }
+            $avgDays = round($totalDays / count($completedWithDates), 1);
+        }
+
+        // SLA: on time = completed before or on deadline
+        $slaTotal = 0; $slaOnTime = 0;
+        foreach ($demands as $dd) {
+            if ($dd['deadline'] && $dd['status'] === 'Concluída' && $dd['completed_at']) {
+                $slaTotal++;
+                if (strtotime($dd['completed_at']) <= strtotime($dd['deadline'] . ' 23:59:59')) $slaOnTime++;
+            }
+        }
+
+        $sys['demands'] = $demands;
+        $sys['docs'] = $docs;
+        $sys['history'] = $history;
+        $sys['stats'] = [
+            'total' => $total,
+            'done' => $done,
+            'active' => $active,
+            'urgent' => $urgent,
+            'avg_days' => $avgDays,
+            'sla_total' => $slaTotal,
+            'sla_on_time' => $slaOnTime
+        ];
+
+        jsonR($sys);
+    } catch (Exception $e) {
+        jsonR(['error' => $e->getMessage()], 500);
+    }
+}
+
 // ===== SYSTEMS =====
 if($act==='sistemas'){
     if($method==='GET'){
@@ -870,71 +1020,7 @@ if($act==='notice'&&isset($_GET['id'])){
     if($method==='GET'){
         $s=$db->prepare("SELECT n.*,u.name as author_name FROM avisos n LEFT JOIN usuarios u ON n.created_by=u.id WHERE n.id=?"); $s->execute([$id]); $n=$s->fetch();
 
-// ===== REPORTS API =====
-if($act==='reports'){
-    if(!$IS_ADMIN && !$IS_DIR && !$IS_DEV) jsonR(['error'=>'Sem permissão'],403);
-    $type=$_GET['type']??'general_stats';
-    $df=$_GET['date_from']??date('Y-m-d',strtotime('-90 days'));
-    $dt=$_GET['date_to']??date('Y-m-d');
-    $dtEnd=$dt.' 23:59:59';
-    $sysId=$_GET['system_id']??'';
-    $devId=$_GET['dev_id']??'';
-    $pri=$_GET['priority']??'';
-    $sprintId=$_GET['sprint_id']??'';
-    $where='d.created_at BETWEEN ? AND ?';$params=[$df,$dtEnd];
-    if($sysId){$where.=' AND d.system_id=?';$params[]=$sysId;}
-    if($pri){$where.=' AND d.priority=?';$params[]=$pri;}
-    if($sprintId){$where.=' AND d.sprint_id=?';$params[]=$sprintId;}
-    $devJoin='';$devWhere='';
-    if($devId){$devJoin=' INNER JOIN devs_demands dd2 ON d.id=dd2.demand_id';$devWhere=' AND dd2.dev_id=?';}
-
-    if($type==='general_stats'){
-        $sql="SELECT COUNT(*) as total,SUM(CASE WHEN d.status='Concluída' THEN 1 ELSE 0 END) as concluidas,SUM(CASE WHEN d.status NOT IN ('Concluída','Cancelada') THEN 1 ELSE 0 END) as ativas,SUM(CASE WHEN d.status='Cancelada' THEN 1 ELSE 0 END) as canceladas,SUM(CASE WHEN d.priority='Urgente' THEN 1 ELSE 0 END) as urgentes,AVG(CASE WHEN d.completed_at IS NOT NULL THEN DATEDIFF(d.completed_at,d.created_at) END) as avg_days FROM demands d $devJoin WHERE $where $devWhere";
-        $p2=$params;if($devId)$p2[]=$devId;$s=$db->prepare($sql);$s->execute($p2);$overview=$s->fetch();
-        $sql2="SELECT d.status,COUNT(*) as c FROM demands d $devJoin WHERE $where $devWhere GROUP BY d.status ORDER BY c DESC";
-        $s2=$db->prepare($sql2);$s2->execute($p2);$statusDist=$s2->fetchAll();
-        $sql3="SELECT d.priority,COUNT(*) as c FROM demands d $devJoin WHERE $where $devWhere GROUP BY d.priority ORDER BY c DESC";
-        $s3=$db->prepare($sql3);$s3->execute($p2);$priDist=$s3->fetchAll();
-        $sql4="SELECT COUNT(*) as total,SUM(CASE WHEN d.completed_at IS NOT NULL AND d.deadline IS NOT NULL AND d.completed_at<=d.deadline THEN 1 WHEN d.completed_at IS NOT NULL AND d.deadline IS NULL THEN 1 ELSE 0 END) as on_time FROM demands d $devJoin WHERE $where $devWhere AND d.status='Concluída'";
-        $s4=$db->prepare($sql4);$s4->execute($p2);$sla=$s4->fetch();
-        jsonR(['overview'=>$overview,'status_dist'=>$statusDist,'priority_dist'=>$priDist,'sla'=>$sla]);
-    }
-    if($type==='by_dev'){
-        $sql="SELECT u.id,u.name,u.avatar_color,u.avatar_file,u.role,COUNT(d.id) as total,SUM(CASE WHEN d.status='Concluída' THEN 1 ELSE 0 END) as concluidas,SUM(CASE WHEN d.status IN('Aberta','Aguardando Aceite') THEN 1 ELSE 0 END) as abertas,SUM(CASE WHEN d.status='Em Andamento' THEN 1 ELSE 0 END) as andamento,SUM(CASE WHEN d.status='Em Revisão' THEN 1 ELSE 0 END) as revisao,AVG(CASE WHEN d.completed_at IS NOT NULL THEN DATEDIFF(d.completed_at,d.created_at) END) as avg_days FROM devs_demands dd INNER JOIN users u ON dd.dev_id=u.id INNER JOIN demands d ON dd.demand_id=d.id WHERE d.created_at BETWEEN ? AND ?";
-        $p2=[$df,$dtEnd];
-        if($sysId){$sql.=' AND d.system_id=?';$p2[]=$sysId;}
-        if($pri){$sql.=' AND d.priority=?';$p2[]=$pri;}
-        if($sprintId){$sql.=' AND d.sprint_id=?';$p2[]=$sprintId;}
-        if($devId){$sql.=' AND dd.dev_id=?';$p2[]=$devId;}
-        $sql.=' GROUP BY u.id,u.name ORDER BY concluidas DESC';
-        $s=$db->prepare($sql);$s->execute($p2);jsonR($s->fetchAll());
-    }
-    if($type==='by_system'){
-        $sql="SELECT s.id,s.name,COUNT(d.id) as total,SUM(CASE WHEN d.status IN('Aberta','Aguardando Aceite') THEN 1 ELSE 0 END) as abertas,SUM(CASE WHEN d.status='Em Andamento' THEN 1 ELSE 0 END) as andamento,SUM(CASE WHEN d.status='Concluída' THEN 1 ELSE 0 END) as concluidas,SUM(CASE WHEN d.status='Cancelada' THEN 1 ELSE 0 END) as canceladas,AVG(CASE WHEN d.completed_at IS NOT NULL THEN DATEDIFF(d.completed_at,d.created_at) END) as avg_days FROM demands d LEFT JOIN systems s ON d.system_id=s.id $devJoin WHERE $where $devWhere GROUP BY s.id,s.name ORDER BY total DESC";
-        $p2=$params;if($devId)$p2[]=$devId;$s=$db->prepare($sql);$s->execute($p2);jsonR($s->fetchAll());
-    }
-    if($type==='timeline'){
-        $sql="SELECT DATE_FORMAT(d.created_at,'%Y-%m') as month,COUNT(*) as criadas,SUM(CASE WHEN d.status='Concluída' THEN 1 ELSE 0 END) as concluidas,SUM(CASE WHEN d.status='Cancelada' THEN 1 ELSE 0 END) as canceladas FROM demands d $devJoin WHERE $where $devWhere GROUP BY month ORDER BY month ASC";
-        $p2=$params;if($devId)$p2[]=$devId;$s=$db->prepare($sql);$s->execute($p2);jsonR($s->fetchAll());
-    }
-    if($type==='productivity'){
-        $sql="SELECT u.id,u.name,u.avatar_color,u.avatar_file,u.role,SUM(CASE WHEN d.status='Concluída' THEN 1 ELSE 0 END) as concluidas,SUM(CASE WHEN d.status NOT IN('Concluída','Cancelada') THEN 1 ELSE 0 END) as em_aberto,AVG(CASE WHEN d.completed_at IS NOT NULL THEN DATEDIFF(d.completed_at,d.created_at) END) as avg_days,0 as total_hours,0 as reports_count FROM devs_demands dd INNER JOIN users u ON dd.dev_id=u.id INNER JOIN demands d ON dd.demand_id=d.id WHERE d.created_at BETWEEN ? AND ?";
-        $p2=[$df,$dtEnd];
-        if($sysId){$sql.=' AND d.system_id=?';$p2[]=$sysId;}
-        if($pri){$sql.=' AND d.priority=?';$p2[]=$pri;}
-        if($sprintId){$sql.=' AND d.sprint_id=?';$p2[]=$sprintId;}
-        if($devId){$sql.=' AND dd.dev_id=?';$p2[]=$devId;}
-        $sql.=' GROUP BY u.id,u.name ORDER BY concluidas DESC';
-        $s=$db->prepare($sql);$s->execute($p2);$data=$s->fetchAll();
-        try{foreach($data as &$row){$sh=$db->prepare("SELECT COALESCE(SUM(hours_worked),0) as h,COUNT(*) as c FROM daily_reports WHERE dev_id=? AND report_date BETWEEN ? AND ?");$sh->execute([$row['id'],$df,$dt]);$hr=$sh->fetch();$row['total_hours']=$hr['h']??0;$row['reports_count']=$hr['c']??0;}}catch(\Exception $e){}
-        jsonR($data);
-    }
-    if($type==='system_health'){
-        $sql="SELECT s.id,s.name,COUNT(d.id) as total_demands,SUM(CASE WHEN d.status IN('Aberta','Aguardando Aceite') THEN 1 ELSE 0 END) as abertas,SUM(CASE WHEN d.priority='Urgente' AND d.status NOT IN('Concluída','Cancelada') THEN 1 ELSE 0 END) as urgentes,SUM(CASE WHEN d.status='Concluída' THEN 1 ELSE 0 END) as concluidas,AVG(CASE WHEN d.completed_at IS NOT NULL THEN DATEDIFF(d.completed_at,d.created_at) END) as avg_days,MAX(d.created_at) as last_demand FROM systems s LEFT JOIN demands d ON d.system_id=s.id AND d.created_at BETWEEN ? AND ? GROUP BY s.id,s.name ORDER BY total_demands DESC";
-        $s=$db->prepare($sql);$s->execute([$df,$dtEnd]);jsonR($s->fetchAll());
-    }
-    jsonR(['error'=>'Tipo inválido'],400);
-}
+// [REMOVED] duplicate reports block with wrong table names
 
         if($n) jsonR($n); else jsonR(['error'=>'Não encontrado'],404);
     }
