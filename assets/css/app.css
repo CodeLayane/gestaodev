@@ -747,3 +747,415 @@ body.light .sol-step{background:rgba(59,130,246,.08)}
 .sla-info-box .sla-lv{display:flex;align-items:center;gap:5px;font-size:10px}
 .sla-info-box .sla-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .sla-card-combined{min-height:280px}.sla-card-combined>div{display:flex;gap:20px;align-items:flex-start}
+
+/* ═══ COLLAPSIBLE SIDEBAR v4 — FINAL ═══ */
+
+/* Smooth transition on sidebar */
+aside.sidebar {
+    transition: width .28s ease, min-width .28s ease, padding .28s ease;
+    position: relative;
+    overflow: visible;
+    flex-shrink: 0;
+}
+
+/* Smooth transition on main content */
+main.main {
+    transition: margin-left .28s ease, width .28s ease;
+}
+
+/* ── Toggle Button ── */
+.sidebar-toggle {
+    position: absolute;
+    top: 50%;
+    right: -14px;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--acc, #3b82f6);
+    border: 3px solid var(--bg, #0f172a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 9999;
+    transition: all .2s ease;
+    box-shadow: 0 2px 10px rgba(0,0,0,.25);
+    color: #fff;
+}
+.sidebar-toggle:hover {
+    transform: translateY(-50%) scale(1.15);
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+}
+.sidebar-toggle svg {
+    width: 13px;
+    height: 13px;
+    transition: transform .28s ease;
+    flex-shrink: 0;
+}
+body.sidebar-collapsed .sidebar-toggle svg {
+    transform: rotate(180deg);
+}
+
+/* ══════════════════════════════════════════════
+   COLLAPSED STATE
+   ══════════════════════════════════════════════ */
+
+/* Sidebar shrinks to icon-only */
+body.sidebar-collapsed aside.sidebar,
+body.sidebar-collapsed .sidebar {
+    width: 56px !important;
+    min-width: 56px !important;
+    max-width: 56px !important;
+    padding: 8px 2px !important;
+    overflow: hidden !important;
+}
+
+/* ── HIDE ALL TEXT: font-size: 0 on everything ── */
+body.sidebar-collapsed .sidebar *:not(.sidebar-toggle):not(.sidebar-toggle *):not(.logo-mini):not(.badge):not([class*="badge"]) {
+    font-size: 0 !important;
+    letter-spacing: 0 !important;
+}
+
+/* ── Restore SVG icons ── */
+body.sidebar-collapsed .sidebar svg:not(.sidebar-toggle svg) {
+    font-size: initial !important;
+    width: 20px !important;
+    height: 20px !important;
+    flex-shrink: 0;
+}
+body.sidebar-collapsed .sidebar .sidebar-toggle svg {
+    width: 13px !important;
+    height: 13px !important;
+}
+
+/* ── Restore badges ── */
+body.sidebar-collapsed .sidebar .badge,
+body.sidebar-collapsed .sidebar [class*="badge"] {
+    font-size: 8px !important;
+    line-height: 14px !important;
+    height: 14px !important;
+    min-width: 14px !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px !important;
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    border-radius: 50%;
+}
+
+/* ── Logo area: show favicon, hide full logo ── */
+body.sidebar-collapsed .sidebar .sb-brand {
+    padding: 8px 0 !important;
+    margin-bottom: 4px;
+    justify-content: center !important;
+    overflow: hidden !important;
+    max-height: 48px !important;
+}
+body.sidebar-collapsed .sidebar .sb-brand > img {
+    display: none !important;
+}
+body.sidebar-collapsed .sidebar .sb-brand .logo-mini {
+    display: block !important;
+}
+body.sidebar-collapsed .sidebar .sb-brand .sb-icon {
+    display: none !important;
+}
+
+/* ── Nav items: center icons ── */
+body.sidebar-collapsed .sidebar [onclick]:not(.sidebar-toggle),
+body.sidebar-collapsed .sidebar a:not(.sidebar-toggle),
+body.sidebar-collapsed .sidebar .nav-item {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 10px 0 !important;
+    margin: 1px 4px !important;
+    border-radius: 10px;
+    position: relative;
+    min-height: 36px;
+    cursor: pointer;
+}
+
+/* Remove icon margins */
+body.sidebar-collapsed .sidebar [onclick] svg,
+body.sidebar-collapsed .sidebar a svg,
+body.sidebar-collapsed .sidebar .nav-item svg {
+    margin: 0 !important;
+}
+
+/* ── Footer ── */
+body.sidebar-collapsed .sidebar > div:last-child {
+    justify-content: center !important;
+    padding: 6px 0 !important;
+    overflow: hidden !important;
+}
+body.sidebar-collapsed .sidebar .avatar,
+body.sidebar-collapsed .sidebar [class*="avatar"] {
+    margin: 0 auto !important;
+    font-size: 11px !important;
+    width: 32px !important;
+    height: 32px !important;
+    line-height: 32px !important;
+}
+
+/* ── Tooltips with arrow ── */
+body.sidebar-collapsed .sidebar [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1e293b;
+    color: #f1f5f9;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px !important;
+    font-weight: 600;
+    line-height: 1.3 !important;
+    height: auto !important;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    z-index: 99999;
+    pointer-events: none;
+    letter-spacing: normal !important;
+}
+body.sidebar-collapsed .sidebar [data-tip]:hover::before {
+    content: '';
+    position: absolute;
+    left: calc(100% + 4px);
+    top: 50%;
+    transform: translateY(-50%);
+    border: 5px solid transparent;
+    border-right-color: #1e293b;
+    z-index: 99999;
+    pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════
+   FONT SIZE INCREASE ON CONTENT
+   ═══════════════════════════════════════════════ */
+body.sidebar-collapsed .page { font-size: 15px; }
+body.sidebar-collapsed .sc-v { font-size: 1.85em; }
+body.sidebar-collapsed .sc-l { font-size: 11px; }
+body.sidebar-collapsed .card { font-size: 14.5px; }
+body.sidebar-collapsed table { font-size: 13.5px; }
+
+/* ═══════════════════════════════════════════════
+   MOBILE
+   ═══════════════════════════════════════════════ */
+@media (max-width: 900px) {
+    body.sidebar-collapsed aside.sidebar,
+    body.sidebar-collapsed .sidebar {
+        width: 0 !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+    }
+}
+body.sidebar-collapsed main.main { margin-left: 56px !important; }
+/* Fix: restore fixed sidebar */
+aside.sidebar, .sidebar { position: fixed !important; }
+
+/* Fix: botão toggle discreto */
+.sidebar-toggle {
+    width: 20px !important;
+    height: 20px !important;
+    right: -10px !important;
+    background: var(--bdr) !important;
+    border: 2px solid var(--bg) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,.15) !important;
+    opacity: 0;
+    transition: all .2s ease !important;
+}
+.sidebar:hover .sidebar-toggle {
+    opacity: 1;
+}
+.sidebar-toggle:hover {
+    background: var(--acc) !important;
+    transform: translateY(-50%) scale(1.1) !important;
+}
+.sidebar-toggle svg {
+    width: 10px !important;
+    height: 10px !important;
+}
+
+/* Fix: fonte maior em TODO o site quando colapsado */
+body.sidebar-collapsed {
+    font-size: 15.5px !important;
+}
+body.sidebar-collapsed .topbar h1 {
+    font-size: 20px;
+}
+body.sidebar-collapsed .topbar p {
+    font-size: 12px;
+}
+body.sidebar-collapsed .sc-v {
+    font-size: 30px !important;
+}
+body.sidebar-collapsed .sc-l {
+    font-size: 10.5px !important;
+}
+body.sidebar-collapsed table {
+    font-size: 13.5px !important;
+}
+body.sidebar-collapsed thead th {
+    font-size: 11px !important;
+}
+body.sidebar-collapsed .card {
+    font-size: 15px !important;
+}
+body.sidebar-collapsed .btn {
+    font-size: 14px;
+}
+body.sidebar-collapsed .badge {
+    font-size: 11px;
+}
+body.sidebar-collapsed .fsel {
+    font-size: 12.5px;
+}
+body.sidebar-collapsed .k-card-t {
+    font-size: 13px !important;
+}
+body.sidebar-collapsed .k-title {
+    font-size: 11px !important;
+}
+
+/* Zoom real no conteúdo quando sidebar colapsado */
+body.sidebar-collapsed main.main {
+    zoom: 1.08;
+    -moz-transform: scale(1.08);
+    -moz-transform-origin: top left;
+}
+
+/* Fix: alinhar avatar/usuario no sidebar colapsado */
+body.sidebar-collapsed .sb-user {
+    justify-content: center !important;
+    padding: 10px 0 !important;
+    flex-direction: column;
+    align-items: center;
+    gap: 0 !important;
+}
+body.sidebar-collapsed .sb-user .info,
+body.sidebar-collapsed .sb-user .name,
+body.sidebar-collapsed .sb-user .role,
+body.sidebar-collapsed .sb-user button,
+body.sidebar-collapsed .sb-user [onclick*="logout"] {
+    display: none !important;
+}
+body.sidebar-collapsed .sb-user .av {
+    margin: 0 auto !important;
+}
+
+/* Fix: alinhar tudo no centro do sidebar colapsado */
+body.sidebar-collapsed .sidebar .sb-nav {
+    padding: 8px 0 !important;
+}
+body.sidebar-collapsed .sidebar .sb-sec {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+body.sidebar-collapsed .sidebar .sb-i {
+    width: 42px !important;
+    justify-content: center !important;
+    padding: 10px 0 !important;
+    margin: 1px 0 !important;
+    gap: 0 !important;
+}
+body.sidebar-collapsed .sidebar .sb-brand {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 12px 0 !important;
+}
+body.sidebar-collapsed .sb-user {
+    padding: 12px 0 !important;
+}
+body.sidebar-collapsed .sb-user .av {
+    display: flex !important;
+    margin: 0 auto !important;
+}
+
+/* Hide logout button when collapsed */
+body.sidebar-collapsed .sb-user button,
+body.sidebar-collapsed .sb-user [onclick*="logout"],
+body.sidebar-collapsed .sb-user a[title],
+body.sidebar-collapsed .sb-user > *:not(.av) {
+    display: none !important;
+}
+
+/* Icons mais juntos */
+body.sidebar-collapsed .sidebar .sb-i {
+    padding: 7px 0 !important;
+    min-height: 28px !important;
+}
+body.sidebar-collapsed .sidebar .sb-sec {
+    margin-bottom: 4px !important;
+}
+body.sidebar-collapsed .sidebar .sb-sec-t {
+    margin-bottom: 0 !important;
+    padding: 0 !important;
+    height: 0 !important;
+}
+
+/* Esconder TUDO do footer exceto avatar */
+body.sidebar-collapsed .sb-user ~ *,
+body.sidebar-collapsed .sidebar > div:last-child:not(.sb-user),
+body.sidebar-collapsed .sidebar .sb-user ~ button,
+body.sidebar-collapsed .sidebar .sb-user ~ a,
+body.sidebar-collapsed .sidebar > button:last-of-type,
+body.sidebar-collapsed .sidebar > a:last-of-type {
+    display: none !important;
+}
+
+/* Esconder botão sair no sidebar colapsado */
+body.sidebar-collapsed .sidebar .btn.btn-sm.btn-g {
+    display: none !important;
+}
+
+/* Restaurar letra do avatar quando colapsado */
+body.sidebar-collapsed .sidebar .sb-user .av {
+    font-size: 13px !important;
+    line-height: 32px !important;
+}
+
+/* Avatar correto em ambos os estados */
+body.sidebar-collapsed .sidebar .sb-user .av {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 13px !important;
+    line-height: 32px !important;
+    overflow: hidden !important;
+    border-radius: 50% !important;
+}
+body.sidebar-collapsed .sidebar .sb-user .av img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    display: block !important;
+    font-size: 0 !important;
+}
+
+/* Avatar imagem no colapsado */
+body.sidebar-collapsed .sidebar .sb-user .av img {
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 50% !important;
+    object-fit: cover !important;
+    display: block !important;
+}
+/* Cursor pointer no avatar colapsado */
+body.sidebar-collapsed .sb-user .av {
+    cursor: pointer !important;
+}
+
+/* Cursor pointer no sb-user sempre */
+.sb-user .av {
+    cursor: pointer !important;
+}
+.sb-user .info {
+    cursor: pointer !important;
+}

@@ -2020,3 +2020,188 @@ btn.classList.add('active');
 btn.parentElement.parentElement.querySelectorAll('[id^="sys-"]').forEach(el=>el.style.display='none');
 document.getElementById(tabId).style.display='block';
 }
+
+// ═══ SIDEBAR TOGGLE v4 — FINAL ═══
+(function initSidebarToggle(){
+  var sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+  if(!sidebar) return;
+
+  // Remove old toggles
+  sidebar.querySelectorAll('.sidebar-toggle').forEach(function(el){ el.remove(); });
+
+  // ── Create toggle button ──
+  var btn = document.createElement('div');
+  btn.className = 'sidebar-toggle';
+  btn.title = 'Recolher / Expandir';
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+  btn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSidebar();
+  });
+  sidebar.appendChild(btn);
+
+  // ── Favicon mini logo ──
+  var brand = sidebar.querySelector('.sb-brand');
+  if(brand){
+    var mini = document.createElement('img');
+    mini.src = 'assets/img/favicon.png';
+    mini.alt = 'Menu';
+    mini.className = 'logo-mini';
+    mini.style.cssText = 'display:none;width:32px;height:32px;object-fit:contain;border-radius:6px;margin:0 auto;';
+    brand.appendChild(mini);
+  }
+
+  // ── Tooltips on nav items ──
+  sidebar.querySelectorAll('[onclick], a').forEach(function(item){
+    if(item.classList.contains('sidebar-toggle')) return;
+    if(item.closest('.sidebar-toggle')) return;
+    if(item.closest('.sb-brand')) return;
+
+    var text = '';
+    // Get text from spans
+    var spans = item.querySelectorAll('span');
+    for(var i = 0; i < spans.length; i++){
+      var s = spans[i];
+      if(s.className && s.className.match && s.className.match(/badge|icon/)) continue;
+      var t = s.textContent.trim();
+      if(t.length > 1 && t.length < 40){ text = t; break; }
+    }
+    // Fallback: direct text content
+    if(!text){
+      var nodes = item.childNodes;
+      for(var j = 0; j < nodes.length; j++){
+        if(nodes[j].nodeType === 3){
+          var t2 = nodes[j].textContent.trim();
+          if(t2.length > 1 && t2.length < 40){ text = t2; break; }
+        }
+      }
+    }
+    if(text) item.setAttribute('data-tip', text);
+  });
+
+  // ── Restore saved state ──
+  if(localStorage.getItem('sidebar_collapsed') === '1'){
+    document.body.classList.add('sidebar-collapsed');
+  }
+})();
+
+function toggleSidebar(){
+  var collapsed = document.body.classList.toggle('sidebar-collapsed');
+  localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
+  setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 300);
+}
+
+// Click em area vazia do sidebar colapsado → expandir
+document.getElementById('sidebar').addEventListener('click', function(e){
+    if(!document.body.classList.contains('sidebar-collapsed')) return;
+    // Se clicou em nav item ou toggle, ignora
+    var t = e.target.closest('.sb-i, .sidebar-toggle, .sb-user .av, a[onclick]');
+    if(t) return;
+    toggleSidebar();
+});
+
+// Click no avatar quando colapsado → Meu Perfil
+document.querySelector('.sb-user .av')?.addEventListener('click', function(){
+    if(document.body.classList.contains('sidebar-collapsed')){
+        showPage('perfil');
+    }
+});
+
+// Click no avatar OU nome → Meu Perfil (aberto e colapsado)
+document.querySelector('.sb-user')?.addEventListener('click', function(e){
+    // Ignora se clicou no botão logout
+    if(e.target.closest('button,[onclick*="logout"]')) return;
+    showPage('perfil');
+});
+
+// Atualizar avatar do sidebar ao trocar foto no perfil
+(function(){
+    var origSave = window.saveAvatar;
+    if(!origSave) return;
+    window.saveAvatar = async function(){
+        await origSave.apply(this, arguments);
+        // Reload avatar no sidebar
+        setTimeout(function(){
+            var av = document.querySelector('.sb-user .av');
+            if(!av) return;
+            var img = av.querySelector('img');
+            if(img){
+                img.src = img.src.split('?')[0] + '?t=' + Date.now();
+            }
+        }, 500);
+    };
+})();
+
+// Também atualizar sidebar quando perfil carrega nova foto
+var _origLoadPerfil = window.loadPerfil;
+if(_origLoadPerfil){
+    window.loadPerfil = async function(){
+        await _origLoadPerfil.apply(this, arguments);
+        setTimeout(function(){
+            var profileImg = document.querySelector('#perfil-content .profile-av img, #perfil-content .big-av img');
+            var sidebarAv = document.querySelector('.sb-user .av');
+            if(profileImg && sidebarAv){
+                var existing = sidebarAv.querySelector('img');
+                if(existing){
+                    existing.src = profileImg.src.split('?')[0] + '?t=' + Date.now();
+                } else {
+                    sidebarAv.textContent = '';
+                    var img = document.createElement('img');
+                    img.src = profileImg.src;
+                    img.style.cssText = 'width:100%;height:100%;border-radius:50%;object-fit:cover';
+                    sidebarAv.appendChild(img);
+                }
+            }
+        }, 600);
+    };
+}
+
+// Forçar atualizar avatar do sidebar após upload
+(function(){
+    // Observer: detecta quando img do perfil muda
+    var observer = new MutationObserver(function(){
+        var perfImg = document.querySelector('#perfil-content img[src*="avatars/"]');
+        var sbImg = document.querySelector('.sb-user .av img');
+        var sbAv = document.querySelector('.sb-user .av');
+        if(perfImg && sbAv){
+            var newSrc = perfImg.src.split('?')[0] + '?t=' + Date.now();
+            if(sbImg){
+                sbImg.src = newSrc;
+            } else {
+                sbAv.innerHTML = '';
+                sbAv.innerHTML = '<img src="'+newSrc+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">';
+            }
+        }
+    });
+    var content = document.getElementById('perfil-content');
+    if(content) observer.observe(content, {childList:true, subtree:true, attributes:true, attributeFilter:['src']});
+})();
+
+// Override uploadAvatar para atualizar sidebar
+var _origUploadAvatar = window.uploadAvatar;
+window.uploadAvatar = async function(file){
+    if(!file) return;
+    const fd = new FormData();
+    fd.append('avatar', file);
+    const r = await fetch('api.php?action=profile_avatar', {method:'POST', body:fd});
+    const d = await r.json();
+    if(d.success){
+        ME.avatar_file = d.filename;
+        showToast(IC.check+' Foto atualizada!');
+        // Atualizar sidebar
+        var sbAv = document.querySelector('.sb-user .av');
+        if(sbAv){
+            var newSrc = 'api.php?action=arquivo&f=' + d.filename + '&t=' + Date.now();
+            var img = sbAv.querySelector('img');
+            if(img){
+                img.src = newSrc;
+            } else {
+                sbAv.innerHTML = '<img src="'+newSrc+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">';
+            }
+        }
+        loadProfile();
+    } else {
+        alert(d.error || 'Erro no upload');
+    }
+};
