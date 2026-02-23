@@ -5,6 +5,7 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
 require_once __DIR__.'/config.php';
+require_once __DIR__.'/push-api.php';
 initSession();
 header('Content-Type:application/json;charset=utf-8');
 
@@ -33,6 +34,9 @@ $db=getDB();
 
 // Auto-migrate missing columns (runs once per session)
 if(empty($_SESSION['_migrated'])){
+    // user_permissions table
+    try{ $db->exec("CREATE TABLE IF NOT EXISTS user_permissions (id INT AUTO_INCREMENT PRIMARY KEY,user_id INT NOT NULL,permission VARCHAR(64) NOT NULL,granted TINYINT(1) DEFAULT 1,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uq_up (user_id,permission)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); }catch(Exception $e){}
+
     $autoMig=[
         ['avisos','active','TINYINT(1) DEFAULT 1'],
         ['devs_demandas','assigned_by','INT DEFAULT NULL'],
@@ -91,7 +95,30 @@ $UID=$ME['id']; $ROLE=$ME['role'];
 $IS_ADMIN=strpos($ROLE,'admin')!==false; $IS_PRES=strpos($ROLE,'presidencia')!==false; $IS_DEV=strpos($ROLE,'dev')!==false; $IS_USER=$ROLE==='usuario'; $IS_DIR=strpos($ROLE,'diretor')!==false;
 $ROLES=array_map('trim',explode(',',$ROLE));
 function meHasRole($r){global $ROLES;if(is_array($r))return count(array_intersect($ROLES,$r))>0;return in_array($r,$ROLES);}
-$IS_ELEVATED=$IS_ADMIN||$IS_PRES||$IS_DIR; // Can see all data, reports, approvals
+$IS_ELEVATED=$IS_ADMIN||$IS_PRES||$IS_DIR;
+
+// ── Minhas permissões (qualquer usuário logado) ──
+if($act==='my_permissions'){
+    $st=$db->prepare("SELECT permission,granted FROM user_permissions WHERE user_id=?");
+    $st->execute([$UID]);
+    $rows=[];
+    while($r=$st->fetch()){ $rows[$r['permission']]=(int)$r['granted']; }
+    jsonR(['permissions'=>$rows,'user_id'=>$UID,'role'=>$ROLE]);
+}
+
+// ===== PUSH NOTIFICATION ENDPOINTS =====
+if($act==='push_public_key'){
+    handlePushPublicKey();
+}
+if($act==='push_subscribe'){
+    handlePushSubscribe($db, $UID);
+}
+if($act==='push_unsubscribe'){
+    handlePushUnsubscribe($db, $UID);
+}
+if($act==='push_test'){
+    handlePushTest($db, $UID);
+}
 
 // ===== NOTIFICATIONS =====
 if($act==='notificacoes'){
@@ -109,18 +136,15 @@ if($act==='notificacoes_recent'){
     jsonR($s->fetchAll());
 }
 if($act==='check_deadlines'){
-    // Find demandas with deadlines approaching (3 days) or overdue, assigned to current user or all for admin
     $today=date('Y-m-d');
     $soon=date('Y-m-d',strtotime('+3 days'));
     if($IS_ADMIN||$IS_DIR){
-        // Admin sees all active demandas with approaching deadlines
         $s=$db->prepare("SELECT d.id,d.title,d.deadline,d.priority,d.status,GROUP_CONCAT(u.name SEPARATOR ', ') as dev_names
             FROM demandas d LEFT JOIN devs_demandas dd ON d.id=dd.demand_id LEFT JOIN usuarios u ON dd.user_id=u.id
             WHERE d.status NOT IN ('Concluída','Cancelada') AND d.deadline IS NOT NULL AND d.deadline<=?
             GROUP BY d.id ORDER BY d.deadline ASC");
         $s->execute([$soon]);
     } else {
-        // Dev sees only their demandas
         $s=$db->prepare("SELECT d.id,d.title,d.deadline,d.priority,d.status
             FROM demandas d JOIN devs_demandas dd ON d.id=dd.demand_id
             WHERE dd.user_id=? AND d.status NOT IN ('Concluída','Cancelada') AND d.deadline IS NOT NULL AND d.deadline<=?
@@ -138,7 +162,6 @@ if($act==='check_deadlines'){
         $warnings[]=['id'=>$dm['id'],'title'=>$dm['title'],'deadline'=>$dm['deadline'],'priority'=>$dm['priority'],
             'status'=>$dm['status'],'type'=>$type,'days'=>$diff,'dev_names'=>$dm['dev_names']??''];
     }
-    // Auto-create notificacoes for overdue/today if not already notified in last 24h
     foreach($warnings as $w){
         if($w['type']==='overdue'||$w['type']==='today'){
             $check=$db->prepare("SELECT 1 FROM notificacoes WHERE user_id=? AND type='deadline_warning' AND entity_id=? AND created_at>DATE_SUB(NOW(),INTERVAL 24 HOUR)");
@@ -148,6 +171,7 @@ if($act==='check_deadlines'){
                     ?"ATRASADA (".abs($w['days'])."d): {$w['title']} - Prazo: ".date('d/m',strtotime($w['deadline']))
                     :"VENCE HOJE: {$w['title']}";
                 notify($UID,'deadline_warning',$msg,$w['priority'],"demand:{$w['id']}",'demand',$w['id']);
+                sendPushToUser($db, $UID, ['title'=>'⚠️ Prazo!','message'=>$msg,'url'=>'/index.php#demandas']);
             }
         }
     }
@@ -165,7 +189,6 @@ if($act==='notificacoes_read_all'){
 // ===== STATS =====
 if($act==='stats'){
     $w=''; $p=[];
-    // All usuarios see all demandas stats
     $s=$db->prepare("SELECT COUNT(*) as total,
         SUM(d.status='Aberta') as abertas, SUM(d.status='Aguardando Aceite') as aguardando,
         SUM(d.status='Em Andamento') as andamento, SUM(d.status='Em Revisão') as revisao,
@@ -180,7 +203,6 @@ if($act==='stats'){
 if($act==='demandas'){
     if($method==='GET'){
         $w=['1=1']; $p=[];
-        // All usuarios see all demandas
         if(!empty($_GET['status'])){ $w[]='d.status=?'; $p[]=$_GET['status']; }
         if(!empty($_GET['priority'])){ $w[]='d.priority=?'; $p[]=$_GET['priority']; }
         if(!empty($_GET['system_id'])){ $w[]='d.system_id=?'; $p[]=$_GET['system_id']; }
@@ -201,10 +223,8 @@ if($act==='demandas'){
         $s=$db->prepare($sql); $s->execute($p); $demands=$s->fetchAll();
 
         foreach($demands as &$dm){
-            // Devs atribuídos
             $s2=$db->prepare("SELECT dd.*, u.name, u.avatar_color, u.avatar_file, u.role, u.email FROM devs_demandas dd JOIN usuarios u ON dd.user_id=u.id WHERE dd.demand_id=?");
             $s2->execute([$dm['id']]); $dm['devs']=$s2->fetchAll();
-            // Contagem
             $s3=$db->prepare("SELECT COUNT(*) as c FROM imagens_demandas WHERE demand_id=?"); $s3->execute([$dm['id']]); $dm['img_count']=$s3->fetch()['c'];
             $s4=$db->prepare("SELECT COUNT(*) as c FROM comentarios_demandas WHERE demand_id=?"); $s4->execute([$dm['id']]); $dm['cmt_count']=$s4->fetch()['c'];
         }
@@ -227,6 +247,7 @@ if($act==='demandas'){
             foreach($devIds as $devId){
                 $ins->execute([$did,$devId,$UID]);
                 notify($devId,'demand_assigned',"Nova demanda atribuída: {$title}","Você foi designado para a demanda #{$did}","demand:{$did}",'demand',$did);
+                sendPushToUser($db, (int)$devId, ['title'=>'📋 Nova Demanda','message'=>"Você foi designado: {$title}",'url'=>'/index.php#demandas']);
             }
         }
 
@@ -246,6 +267,7 @@ if($act==='demandas'){
     }
 }
 
+// ===== DEMAND DETAIL =====
 if($act==='demand'&&isset($_GET['id'])){
     $id=(int)$_GET['id'];
     if($method==='GET'){
@@ -254,8 +276,312 @@ if($act==='demand'&&isset($_GET['id'])){
             FROM demandas d LEFT JOIN sistemas s ON d.system_id=s.id
             LEFT JOIN usuarios c ON d.created_by=c.id LEFT JOIN usuarios pa ON d.presidency_approved_by=pa.id
             LEFT JOIN sprints sp ON d.sprint_id=sp.id WHERE d.id=?");
+        $s->execute([$id]); $dm=$s->fetch(); if(!$dm) jsonR(['error'=>'Não encontrada'],404);
 
-// ===== DEPARTMENTS =====
+        $s=$db->prepare("SELECT dd.*, u.name, u.avatar_color, u.avatar_file, u.role FROM devs_demandas dd JOIN usuarios u ON dd.user_id=u.id WHERE dd.demand_id=?"); $s->execute([$id]); $dm['devs']=$s->fetchAll();
+        $s=$db->prepare("SELECT di.*, u.name as uploader FROM imagens_demandas di LEFT JOIN usuarios u ON di.uploaded_by=u.id WHERE di.demand_id=? ORDER BY di.created_at DESC"); $s->execute([$id]); $dm['images']=$s->fetchAll();
+        $s=$db->prepare("SELECT dc.*, u.name as user_name, u.avatar_color FROM comentarios_demandas dc LEFT JOIN usuarios u ON dc.user_id=u.id WHERE dc.demand_id=? ORDER BY dc.created_at ASC"); $s->execute([$id]); $dm['comments']=$s->fetchAll();
+        $s=$db->prepare("SELECT dh.*, u.name as user_name FROM historico_demandas dh LEFT JOIN usuarios u ON dh.user_id=u.id WHERE dh.demand_id=? ORDER BY dh.created_at DESC"); $s->execute([$id]); $dm['history']=$s->fetchAll();
+        jsonR($dm);
+    }
+    if($method==='PUT'){
+        if(!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Sem permissão para editar demandas'],403);
+        $d=json_decode(file_get_contents('php://input'),true);
+        $s=$db->prepare("SELECT * FROM demandas WHERE id=?"); $s->execute([$id]); $old=$s->fetch(); if(!$old) jsonR(['error'=>'Não encontrada'],404);
+
+        $newStatus=$d['status']??$old['status'];
+        $completedAt=$old['completed_at'];
+        if($newStatus==='Concluída'&&$old['status']!=='Concluída') $completedAt=date('Y-m-d H:i:s');
+        if($newStatus!=='Concluída') $completedAt=null;
+
+        $db->prepare("UPDATE demandas SET title=?,description=?,system_id=?,priority=?,status=?,requester=?,start_date=?,deadline=?,needs_presidency_approval=?,sprint_id=?,completed_at=? WHERE id=?")
+            ->execute([$d['title']??$old['title'],$d['description']??$old['description'],$d['system_id']?:$old['system_id'],$d['priority']??$old['priority'],$newStatus,$d['requester']??$old['requester'],$d['start_date']?:$old['start_date'],$d['deadline']?:$old['deadline'],isset($d['needs_presidency_approval'])?($d['needs_presidency_approval']?1:0):$old['needs_presidency_approval'],$d['sprint_id']??$old['sprint_id']??null,$completedAt,$id]);
+
+        // Atualizar devs se fornecido
+        if(isset($d['dev_ids'])){
+            $oldDevs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $oldDevs->execute([$id]); $oldIds=array_column($oldDevs->fetchAll(),'user_id');
+            $newIds=$d['dev_ids'];
+            $toAdd=array_diff($newIds,$oldIds); $toRm=array_diff($oldIds,$newIds);
+            foreach($toRm as $rid) $db->prepare("DELETE FROM devs_demandas WHERE demand_id=? AND user_id=?")->execute([$id,$rid]);
+            $ins=$db->prepare("INSERT IGNORE INTO devs_demandas (demand_id,user_id,assigned_by) VALUES (?,?,?)");
+            foreach($toAdd as $aid){
+                $ins->execute([$id,$aid,$UID]);
+                notify($aid,'demand_assigned',"Nova demanda: ".trim($d['title']??$old['title']??''),'',"demand:{$id}",'demand',$id);
+                sendPushToUser($db, (int)$aid, ['title'=>'📋 Nova Demanda','message'=>'Você foi designado: '.trim($d['title']??$old['title']??''),'url'=>'/index.php#demandas']);
+            }
+        }
+
+        if($newStatus!==$old['status']){
+            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,?)")->execute([$id,$UID,$old['status'],$newStatus]);
+            $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $devs->execute([$id]);
+            $ttl=trim($d['title']??$old['title']??'');
+            foreach($devs->fetchAll() as $dv){
+                if($dv['user_id']!=$UID){
+                    notify($dv['user_id'],'demand_status',"{$ttl}: {$newStatus}",'',"demand:{$id}",'demand',$id);
+                    sendPushToUser($db, (int)$dv['user_id'], ['title'=>'Demanda Atualizada','message'=>"{$ttl}: {$newStatus}",'url'=>'/index.php#demandas']);
+                }
+            }
+        }
+        logActivity($UID,"Atualizou: ".trim($d['title']??$old['title']??''),'demand',$id);
+        jsonR(['success'=>true]);
+    }
+    if($method==='DELETE'){
+        if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
+        $db->prepare("DELETE FROM demandas WHERE id=?")->execute([$id]);
+        logActivity($UID,"Excluiu demanda #{$id}",'demand',$id);
+        jsonR(['success'=>true]);
+    }
+}
+
+// Aceite/Recusa de demanda pelo dev
+if($act==='demand_accept'&&isset($_GET['id'])){
+    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
+    $acceptance=$d['acceptance']??'Aceita'; $reason=$d['reason']??'';
+    $dem=$db->prepare("SELECT title,status FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
+    $demTitle=$demRow['title']??'';
+
+    $db->prepare("UPDATE devs_demandas SET acceptance=?,assigned_at=NOW(),rejection_reason=? WHERE demand_id=? AND user_id=?")->execute([$acceptance,$reason,$id,$UID]);
+    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value,details) VALUES (?,?,?,?,?)")
+        ->execute([$id,$UID,$acceptance==='Aceita'?'Dev aceitou':'Dev recusou',$acceptance,$reason]);
+
+    if($acceptance==='Aceita'){
+        if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
+            $db->prepare("UPDATE demandas SET status='Em Andamento' WHERE id=?")->execute([$id]);
+            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
+        }
+    }
+    $admins=$db->query("SELECT id FROM usuarios WHERE role LIKE '%admin%' AND active=1")->fetchAll();
+    $nm=$ME['name']." ".($acceptance==='Aceita'?'aceitou':'recusou').": {$demTitle}";
+    foreach($admins as $a){
+        if($a['id']!=$UID){
+            notify($a['id'],'demand_accept',$nm,$reason,"demand:{$id}",'demand',$id);
+            sendPushToUser($db, (int)$a['id'], ['title'=>$acceptance==='Aceita'?'✅ Aceite':'❌ Recusa','message'=>$nm,'url'=>'/index.php#demandas']);
+        }
+    }
+    logActivity($UID,"{$ME['name']} {$acceptance}: {$demTitle}",'demand',$id);
+    jsonR(['success'=>true]);
+}
+
+// Dev claims (pega) an open demand
+if($act==='demand_claim'&&isset($_GET['id'])){
+    if(!$IS_DEV&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Sem permissão'],403);
+    $id=(int)$_GET['id'];
+    $dem=$db->prepare("SELECT title,status FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
+    if(!$demRow) jsonR(['error'=>'Demanda não encontrada'],404);
+    $chk=$db->prepare("SELECT acceptance FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chk->execute([$id,$UID]);
+    $existing=$chk->fetch();
+    if($existing){
+        if($existing['acceptance']==='Pendente'){
+            $db->prepare("UPDATE devs_demandas SET acceptance='Aceita',assigned_at=NOW() WHERE demand_id=? AND user_id=?")->execute([$id,$UID]);
+            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Dev aceitou','Aceita')")->execute([$id,$UID]);
+        }
+        if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
+            $db->prepare("UPDATE demandas SET status='Em Andamento' WHERE id=?")->execute([$id]);
+            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
+            $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
+            foreach($admins as $a){
+                if($a['id']!=$UID){
+                    notify($a['id'],'demand_status',"{$ME['name']} iniciou: {$demRow['title']}",'','demand:'.$id,'demand',$id);
+                    sendPushToUser($db, (int)$a['id'], ['title'=>'🚀 Demanda Iniciada','message'=>"{$ME['name']} iniciou: {$demRow['title']}",'url'=>'/index.php#demandas']);
+                }
+            }
+            logActivity($UID,"{$ME['name']} iniciou desenvolvimento: {$demRow['title']}",'demand',$id);
+            jsonR(['success'=>true,'started'=>true]);
+        }
+        jsonR(['success'=>true,'already'=>true]);
+    }
+    $others=$db->prepare("SELECT u.id,u.name FROM devs_demandas dd JOIN usuarios u ON dd.user_id=u.id WHERE dd.demand_id=?"); $others->execute([$id]);
+    $otherDevs=$others->fetchAll();
+    $d=json_decode(file_get_contents('php://input'),true);
+    $force=$d['force']??false;
+    if(!empty($otherDevs)&&!$force){
+        jsonR(['conflict'=>true,'devs'=>array_column($otherDevs,'name'),'message'=>'Esta demanda já tem devs atribuídos: '.implode(', ',array_column($otherDevs,'name')).'. Deseja continuar?']);
+    }
+    $db->prepare("INSERT IGNORE INTO devs_demandas (demand_id,user_id,assigned_by,acceptance) VALUES (?,?,?,'Aceita')")->execute([$id,$UID,$UID]);
+    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Dev assumiu a demanda',?)")->execute([$id,$UID,$ME['name']]);
+    if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
+        $db->prepare("UPDATE demandas SET status='Em Andamento' WHERE id=?")->execute([$id]);
+        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
+    }
+    $admins=$db->query("SELECT id FROM usuarios WHERE role LIKE '%admin%' AND active=1")->fetchAll();
+    foreach($admins as $a) if($a['id']!=$UID) notify($a['id'],'demand_assigned',"{$ME['name']} assumiu: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
+    foreach($otherDevs as $od) notify($od['id']??0,'demand_assigned',"{$ME['name']} assumiu a demanda: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
+    logActivity($UID,"{$ME['name']} assumiu: {$demRow['title']}",'demand',$id);
+    jsonR(['success'=>true]);
+}
+
+// Status rápido (with workflow rules)
+if($act==='demand_status'&&isset($_GET['id'])){
+    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true); $ns=$d['status']??''; $justification=$d['justification']??'';
+    $old=$db->prepare("SELECT status,title FROM demandas WHERE id=?"); $old->execute([$id]); $oRow=$old->fetch(); $os=$oRow['status']??''; $demTitle=$oRow['title']??'';
+    if($os===$ns) jsonR(['success'=>true,'unchanged'=>true]);
+    if($ns==='Cancelada'&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Apenas admin/diretor pode cancelar demandas. Use Solicitar Cancelamento.'],403);
+    if($ns==='Em Andamento'&&$os!=='Em Revisão'&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Use Assumir Demanda para iniciar'],403);
+    if($ns==='Concluída'&&$os==='Em Revisão'&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Apenas admin/diretor pode concluir demandas em revisão'],403);
+    if($ns==='Em Andamento'&&$os==='Em Revisão'&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Apenas admin/diretor pode devolver demandas'],403);
+    $completedAt=null; if($ns==='Concluída') $completedAt=date('Y-m-d H:i:s');
+    $db->prepare("UPDATE demandas SET status=?,completed_at=? WHERE id=?")->execute([$ns,$completedAt,$id]);
+    $action='Status alterado';
+    if($os==='Em Revisão'&&$ns==='Em Andamento') $action='Devolvida para ajustes';
+    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value,details) VALUES (?,?,?,?,?,?)")->execute([$id,$UID,$action,$os,$ns,$justification]);
+    // Notify devs
+    $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $devs->execute([$id]);
+    $notifMsg=$action==='Devolvida para ajustes'?"{$demTitle}: Devolvida — {$justification}":"{$demTitle}: {$ns}";
+    $devIds=[];
+    foreach($devs->fetchAll() as $dv){
+        $devIds[]=$dv['user_id'];
+        if($dv['user_id']!=$UID){
+            $pushTitle=$ns==='Concluída'?'🎉 Concluída!':'Demanda Atualizada';
+            $pushMsg=$ns==='Concluída'?"Parabéns! \"{$demTitle}\" foi concluída!":$notifMsg;
+            notify($dv['user_id'],$ns==='Concluída'?'demand_completed':'demand_status',$ns==='Concluída'?"🎉 Parabéns \"{$demTitle}\" - Concluída!":$notifMsg,'',"demand:{$id}",'demand',$id);
+            sendPushToUser($db, (int)$dv['user_id'], ['title'=>$pushTitle,'message'=>$pushMsg,'url'=>'/index.php#demandas']);
+        }
+    }
+    if($ns==='Concluída'){
+        $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
+        foreach($admins as $a) if($a['id']!=$UID&&!in_array($a['id'],$devIds)) notify($a['id'],'demand_completed',"🎉 {$demTitle}: Concluída!",'',  "demand:{$id}",'demand',$id);
+    }
+    if($ns==='Em Revisão'){
+        $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
+        foreach($admins as $a){
+            if($a["id"]!=$UID&&!in_array($a["id"],$devIds)){
+                notify($a['id'],'demand_status',"{$demTitle}: Enviada para Revisão",'',"demand:{$id}",'demand',$id);
+                sendPushToUser($db, (int)$a['id'], ['title'=>'📝 Em Revisão','message'=>"{$demTitle}: Enviada para Revisão",'url'=>'/index.php#demandas']);
+            }
+        }
+    }
+    logActivity($UID,"Status: {$demTitle} → {$ns}",'demand',$id);
+    jsonR(['success'=>true]);
+}
+
+// Delegate demand to another dev
+if($act==='demand_delegate'&&isset($_GET['id'])){
+    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
+    $targetId=(int)($d['target_user_id']??0);
+    if(!$targetId) jsonR(['error'=>'Dev destino obrigatório'],400);
+    $dem=$db->prepare("SELECT title,status FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
+    if(!$demRow) jsonR(['error'=>'Demanda não encontrada'],404);
+    $chk=$db->prepare("SELECT 1 FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chk->execute([$id,$UID]);
+    if(!$chk->fetch()&&!$IS_ADMIN) jsonR(['error'=>'Você não está nesta demanda'],403);
+    $chk2=$db->prepare("SELECT 1 FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chk2->execute([$id,$targetId]);
+    if($chk2->fetch()) jsonR(['error'=>'Dev já está nesta demanda'],400);
+    $tgt=$db->prepare("SELECT name FROM usuarios WHERE id=?"); $tgt->execute([$targetId]); $tgtName=$tgt->fetch()['name']??'';
+    $db->prepare("INSERT INTO devs_demandas (demand_id,user_id,assigned_by,acceptance) VALUES (?,?,?,'Pendente')")->execute([$id,$targetId,$UID]);
+    if($IS_DEV&&($d['remove_self']??false)){
+        $db->prepare("DELETE FROM devs_demandas WHERE demand_id=? AND user_id=?")->execute([$id,$UID]);
+        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,?,?)")->execute([$id,$UID,'Delegou para',$tgtName]);
+    } else {
+        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,?,?)")->execute([$id,$UID,'Adicionou dev',$tgtName]);
+    }
+    notify($targetId,'demand_assigned',"{$ME['name']} delegou: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
+    sendPushToUser($db, $targetId, ['title'=>'📋 Demanda Delegada','message'=>"{$ME['name']} delegou: {$demRow['title']}",'url'=>'/index.php#demandas']);
+    logActivity($UID,"Delegou {$demRow['title']} → {$tgtName}",'demand',$id);
+    jsonR(['success'=>true]);
+}
+
+// Aprovação presidência
+if($act==='demand_approve'&&isset($_GET['id'])){
+    if(!$IS_ELEVATED) jsonR(['error'=>'Sem permissão'],403);
+    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
+    $st=$d['presidency_status']??'Aprovada'; $notes=$d['presidency_notes']??'';
+    $dem=$db->prepare("SELECT title,created_by FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
+    $demTitle=$demRow['title']??'';
+    if($st==='Rejeitada'){
+        $db->prepare("UPDATE demandas SET presidency_status='Rejeitada',presidency_approved_by=?,presidency_approved_at=NOW(),presidency_notes=?,status='Aberta' WHERE id=?")->execute([$UID,$notes,$id]);
+    } else {
+        $db->prepare("UPDATE demandas SET presidency_status=?,presidency_approved_by=?,presidency_approved_at=NOW(),presidency_notes=?,status='Aguardando Aceite' WHERE id=?")->execute([$st,$UID,$notes,$id]);
+        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado','Aberta','Aguardando Aceite')")->execute([$id,$UID]);
+        $db->prepare("UPDATE devs_demandas SET acceptance='Pendente',assigned_at=NULL WHERE demand_id=?")->execute([$id]);
+    }
+    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value,details) VALUES (?,?,CONCAT('Presidência: ',?),?,?)")->execute([$id,$UID,$st,$st,$notes]);
+    $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $devs->execute([$id]);
+    $notifyIds=array_unique(array_merge(array_column($devs->fetchAll(),'user_id'),$demRow['created_by']?[$demRow['created_by']]:[]));
+    foreach($notifyIds as $nid){
+        if($nid!=$UID){
+            notify($nid,'presidency',"{$demTitle}: Presidência {$st}",$notes,"demand:{$id}",'demand',$id);
+            sendPushToUser($db, (int)$nid, ['title'=>$st==='Aprovada'?'✅ Aprovada':'❌ Rejeitada','message'=>"Presidência {$st}: {$demTitle}",'url'=>'/index.php#demandas']);
+        }
+    }
+    if($st==='Rejeitada'){$admins=$db->query("SELECT id FROM usuarios WHERE role LIKE '%admin%' AND active=1")->fetchAll(); foreach($admins as $a) if($a['id']!=$UID) notify($a['id'],'presidency_rejected',"Presidência: {$demTitle} REJEITADA pela Presidência",$notes,"demand:{$id}",'demand',$id);}
+    logActivity($UID,"Presidência {$st}: {$demTitle}",'demand',$id);
+    jsonR(['success'=>true]);
+}
+
+// Resubmit demand for presidency approval after rejection
+if($act==='demand_resubmit'&&isset($_GET['id'])){
+    if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
+    $id=(int)$_GET['id'];
+    $db->prepare("UPDATE demandas SET presidency_status='Pendente',presidency_approved_by=NULL,presidency_approved_at=NULL,presidency_notes=NULL WHERE id=?")->execute([$id]);
+    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Reenviada para aprovação','Pendente')")->execute([$id,$UID]);
+    $pres=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%presidencia%' OR role LIKE '%admin%') AND active=1")->fetchAll();
+    $dem=$db->prepare("SELECT title FROM demandas WHERE id=?"); $dem->execute([$id]); $demT=$dem->fetch()['title']??'';
+    foreach($pres as $p){
+        if($p['id']!=$UID){
+            notify($p['id'],'presidency',"Demanda #{$id} reenviada para aprovação",'',"demand:{$id}",'demand',$id);
+            sendPushToUser($db, (int)$p['id'], ['title'=>'📋 Aprovação Pendente','message'=>"Demanda reenviada: {$demT}",'url'=>'/index.php#aprovacoes']);
+        }
+    }
+    logActivity($UID,"Reenviou #{$id} para aprovação",'demand',$id);
+    jsonR(['success'=>true]);
+}
+
+// Comentário
+if($act==='demand_comment'&&isset($_GET['id'])){
+    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
+    $txt=trim($d['text']??''); if(!$txt) jsonR(['error'=>'Vazio'],400);
+    $mentions=$d['mentions']??[];
+    $db->prepare("INSERT INTO comentarios_demandas (demand_id,user_id,text) VALUES (?,?,?)")->execute([$id,$UID,$txt]);
+    $dem=$db->prepare("SELECT title,created_by FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
+    $demTitle=$demRow['title']??'';
+    $msg="{$ME['name']} comentou em: {$demTitle}";
+    $notified=[$UID];
+    // Notify mentioned usuarios first
+    if(!empty($mentions)){
+        $mentionMsg="{$ME['name']} mencionou você em: {$demTitle}";
+        foreach($mentions as $mid){
+            $mid=(int)$mid;
+            if($mid && !in_array($mid,$notified)){
+                notify($mid,'comment',$mentionMsg,$txt,"demand:{$id}",'demand',$id);
+                sendPushToUser($db, $mid, ['title'=>'💬 Menção','message'=>$mentionMsg,'url'=>'/index.php#demandas']);
+                $notified[]=$mid;
+            }
+        }
+    }
+    $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $devs->execute([$id]);
+    foreach($devs->fetchAll() as $dv){
+        if(!in_array($dv['user_id'],$notified)){
+            notify($dv['user_id'],'comment',$msg,$txt,"demand:{$id}",'demand',$id);
+            sendPushToUser($db, (int)$dv['user_id'], ['title'=>'💬 Comentário','message'=>$msg,'url'=>'/index.php#demandas']);
+            $notified[]=$dv['user_id'];
+        }
+    }
+    $admins=$db->query("SELECT id FROM usuarios WHERE role LIKE '%admin%' AND active=1")->fetchAll();
+    foreach($admins as $a){ if(!in_array($a['id'],$notified)){ notify($a['id'],'comment',$msg,$txt,"demand:{$id}",'demand',$id); $notified[]=$a['id']; }}
+    if($demRow['created_by']&&!in_array($demRow['created_by'],$notified)) notify($demRow['created_by'],'comment',$msg,$txt,"demand:{$id}",'demand',$id);
+    logActivity($UID,"Comentou: {$demTitle}",'demand',$id);
+    jsonR(['success'=>true]);
+}
+
+// Upload imagem
+if($act==='demand_upload'&&isset($_GET['id'])){
+    $id=(int)$_GET['id'];
+    if(!$IS_ADMIN&&!$IS_DIR){
+        $chkDev=$db->prepare("SELECT 1 FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chkDev->execute([$id,$UID]);
+        if(!$chkDev->fetch()) jsonR(['error'=>'Sem permissão'],403);
+    }
+    if(empty($_FILES['image'])) jsonR(['error'=>'Sem imagem'],400);
+    $f=$_FILES['image']; if($f['error']!==0) jsonR(['error'=>'Erro upload: code '.$f['error']],400);
+    if($f['size']>MAX_UPLOAD_SIZE) jsonR(['error'=>'Muito grande (max 10MB)'],400);
+    $ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));
+    if(!in_array($ext,ALLOWED_EXTENSIONS)) jsonR(['error'=>'Formato inválido: '.$ext],400);
+    $fn='d'.$id.'_'.bin2hex(random_bytes(8)).'.'.strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));
+    $mime=mime_content_type($f["tmp_name"])?:"image/jpeg"; $data=file_get_contents($f["tmp_name"]); $db->prepare("INSERT INTO arquivos (nome_arquivo,nome_original,tipo_mime,dados,criado_por) VALUES (?,?,?,?,?)")->execute([$fn,$f["name"],$mime,$data,$UID]);
+    $db->prepare("INSERT INTO imagens_demandas (demand_id,filename,original_name,uploaded_by) VALUES (?,?,?,?)")->execute([$id,$fn,$f['name'],$UID]);
+    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Imagem adicionada',?)")->execute([$id,$UID,$f['name']]);
+    jsonR(['success'=>true,'filename'=>$fn]);
+}
+
+// ===== DEPARTMENTS ===== (FIX: movido para nível top-level)
 if($act==='departments'){
     if($method==='GET'){
         $s=$db->query("SELECT d.*, (SELECT COUNT(*) FROM users u WHERE u.department_id=d.id) as user_count FROM departments d ORDER BY d.name");
@@ -282,7 +608,7 @@ if($act==='department'&&isset($_GET['id'])){
     }
 }
 
-// ===== DOCUMENTATIONS =====
+// ===== DOCUMENTATIONS ===== (FIX: movido para nível top-level)
 if($act==='docs'||$act==='doc'||$act==='doc_upload'||$act==='doc_file_delete'){
     try{
         $db->exec("CREATE TABLE IF NOT EXISTS documentations (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(300) NOT NULL, description TEXT, content LONGTEXT, system_id INT DEFAULT NULL, category VARCHAR(100) DEFAULT 'Geral', password VARCHAR(255) DEFAULT NULL, password_plain VARCHAR(255) DEFAULT NULL, created_by INT NOT NULL, updated_by INT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -414,15 +740,15 @@ if($act==='doc_file_delete'&&isset($_GET['id'])){
         jsonR(['success'=>true]);
     }catch(Exception $e){ jsonR(['error'=>$e->getMessage()],500); }
 }
-// ===== SURVEYS =====
+
+// ===== SURVEYS ===== (FIX: movido para nível top-level)
 if($act==='surveys'){
     if($method==='GET'){
-        $sql="SELECT s.*,u.name as author_name,(SELECT COUNT(DISTINCT sv.user_id) FROM survey_votes sv WHERE sv.survey_id=s.id) as total_votes FROM surveys s LEFT JOIN users u ON s.created_by=u.id ORDER BY s.created_at DESC";
+        $sql="SELECT s.*,u.name as author_name,(SELECT COUNT(DISTINCT sv.user_id) FROM survey_votes sv WHERE sv.survey_id=s.id) as total_votes FROM surveys s LEFT JOIN usuarios u ON s.created_by=u.id ORDER BY s.created_at DESC";
         $s=$db->query($sql);$surveys=$s->fetchAll();
         foreach($surveys as &$sv){
             $so=$db->prepare("SELECT so.*,(SELECT COUNT(*) FROM survey_votes v WHERE v.option_id=so.id) as votes FROM survey_options so WHERE so.survey_id=? ORDER BY so.sort_order");
             $so->execute([$sv['id']]);$sv['options']=$so->fetchAll();
-            // Check if current user voted
             $vc=$db->prepare("SELECT option_id FROM survey_votes WHERE survey_id=? AND user_id=?");$vc->execute([$sv['id'],$UID]);
             $sv['my_votes']=$vc->fetchAll(PDO::FETCH_COLUMN);
         }
@@ -447,9 +773,7 @@ if($act==='survey_vote'&&isset($_GET['id'])){
     $sid=(int)$_GET['id'];
     $d=json_decode(file_get_contents('php://input'),true);
     $optIds=$d['option_ids']??[];
-    // Check survey type
     $sv=$db->prepare("SELECT type FROM surveys WHERE id=?");$sv->execute([$sid]);$svType=$sv->fetchColumn();
-    // Remove old votes
     $db->prepare("DELETE FROM survey_votes WHERE survey_id=? AND user_id=?")->execute([$sid,$UID]);
     foreach($optIds as $oid){
         try{$db->prepare("INSERT INTO survey_votes (survey_id,option_id,user_id) VALUES (?,?,?)")->execute([$sid,$oid,$UID]);}catch(\Exception $e){}
@@ -485,300 +809,10 @@ if($act==='reports'&&($_GET['type']??'')==='by_department'){
     jsonR($s->fetchAll());
 }
 
-// [REMOVED] orphaned code block that was causing 500 errors
-
-        $s->execute([$id]); $dm=$s->fetch(); if(!$dm) jsonR(['error'=>'Não encontrada'],404);
-
-        $s=$db->prepare("SELECT dd.*, u.name, u.avatar_color, u.avatar_file, u.role FROM devs_demandas dd JOIN usuarios u ON dd.user_id=u.id WHERE dd.demand_id=?"); $s->execute([$id]); $dm['devs']=$s->fetchAll();
-        $s=$db->prepare("SELECT di.*, u.name as uploader FROM imagens_demandas di LEFT JOIN usuarios u ON di.uploaded_by=u.id WHERE di.demand_id=? ORDER BY di.created_at DESC"); $s->execute([$id]); $dm['images']=$s->fetchAll();
-        $s=$db->prepare("SELECT dc.*, u.name as user_name, u.avatar_color FROM comentarios_demandas dc LEFT JOIN usuarios u ON dc.user_id=u.id WHERE dc.demand_id=? ORDER BY dc.created_at ASC"); $s->execute([$id]); $dm['comments']=$s->fetchAll();
-        $s=$db->prepare("SELECT dh.*, u.name as user_name FROM historico_demandas dh LEFT JOIN usuarios u ON dh.user_id=u.id WHERE dh.demand_id=? ORDER BY dh.created_at DESC"); $s->execute([$id]); $dm['history']=$s->fetchAll();
-        jsonR($dm);
-    }
-    if($method==='PUT'){
-        if(!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Sem permissão para editar demandas'],403);
-        $d=json_decode(file_get_contents('php://input'),true);
-        $s=$db->prepare("SELECT * FROM demandas WHERE id=?"); $s->execute([$id]); $old=$s->fetch(); if(!$old) jsonR(['error'=>'Não encontrada'],404);
-
-        $newStatus=$d['status']??$old['status'];
-        $completedAt=$old['completed_at'];
-        if($newStatus==='Concluída'&&$old['status']!=='Concluída') $completedAt=date('Y-m-d H:i:s');
-        if($newStatus!=='Concluída') $completedAt=null;
-
-        $db->prepare("UPDATE demandas SET title=?,description=?,system_id=?,priority=?,status=?,requester=?,start_date=?,deadline=?,needs_presidency_approval=?,sprint_id=?,completed_at=? WHERE id=?")
-            ->execute([$d['title']??$old['title'],$d['description']??$old['description'],$d['system_id']?:$old['system_id'],$d['priority']??$old['priority'],$newStatus,$d['requester']??$old['requester'],$d['start_date']?:$old['start_date'],$d['deadline']?:$old['deadline'],isset($d['needs_presidency_approval'])?($d['needs_presidency_approval']?1:0):$old['needs_presidency_approval'],$d['sprint_id']??$old['sprint_id']??null,$completedAt,$id]);
-
-        // Atualizar devs se fornecido
-        if(isset($d['dev_ids'])){
-            $oldDevs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $oldDevs->execute([$id]); $oldIds=array_column($oldDevs->fetchAll(),'user_id');
-            $newIds=$d['dev_ids'];
-            $toAdd=array_diff($newIds,$oldIds); $toRm=array_diff($oldIds,$newIds);
-            foreach($toRm as $rid) $db->prepare("DELETE FROM devs_demandas WHERE demand_id=? AND user_id=?")->execute([$id,$rid]);
-            $ins=$db->prepare("INSERT IGNORE INTO devs_demandas (demand_id,user_id,assigned_by) VALUES (?,?,?)");
-            foreach($toAdd as $aid){ $ins->execute([$id,$aid,$UID]); notify($aid,'demand_assigned',"Nova demanda: ".trim($d['title']??$old['title']??''),'',"demand:{$id}",'demand',$id); }
-        }
-
-        if($newStatus!==$old['status']){
-            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,?)")->execute([$id,$UID,$old['status'],$newStatus]);
-            $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $devs->execute([$id]);
-            $ttl=trim($d['title']??$old['title']??'');
-            foreach($devs->fetchAll() as $dv) if($dv['user_id']!=$UID) notify($dv['user_id'],'demand_status',"{$ttl}: {$newStatus}",'',"demand:{$id}",'demand',$id);
-        }
-        logActivity($UID,"Atualizou: ".trim($d['title']??$old['title']??''),'demand',$id);
-        jsonR(['success'=>true]);
-    }
-    if($method==='DELETE'){
-        if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
-        $db->prepare("DELETE FROM demandas WHERE id=?")->execute([$id]);
-        logActivity($UID,"Excluiu demanda #{$id}",'demand',$id);
-        jsonR(['success'=>true]);
-    }
-}
-
-// Aceite/Recusa de demanda pelo dev
-if($act==='demand_accept'&&isset($_GET['id'])){
-    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
-    $acceptance=$d['acceptance']??'Aceita'; $reason=$d['reason']??'';
-    // Get demand title
-    $dem=$db->prepare("SELECT title,status FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
-    $demTitle=$demRow['title']??'';
-
-    $db->prepare("UPDATE devs_demandas SET acceptance=?,assigned_at=NOW(),rejection_reason=? WHERE demand_id=? AND user_id=?")->execute([$acceptance,$reason,$id,$UID]);
-    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value,details) VALUES (?,?,?,?,?)")
-        ->execute([$id,$UID,$acceptance==='Aceita'?'Dev aceitou':'Dev recusou',$acceptance,$reason]);
-
-    if($acceptance==='Aceita'){
-        // Always move to Em Andamento when a dev accepts
-        if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
-            $db->prepare("UPDATE demandas SET status='Em Andamento' WHERE id=?")->execute([$id]);
-            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
-        }
-    }
-    $admins=$db->query("SELECT id FROM usuarios WHERE role LIKE '%admin%' AND active=1")->fetchAll();
-    $nm=$ME['name']." ".($acceptance==='Aceita'?'aceitou':'recusou').": {$demTitle}";
-    foreach($admins as $a) if($a['id']!=$UID) notify($a['id'],'demand_accept',$nm,$reason,"demand:{$id}",'demand',$id);
-    logActivity($UID,"{$ME['name']} {$acceptance}: {$demTitle}",'demand',$id);
-    jsonR(['success'=>true]);
-}
-
-// Dev claims (pega) an open demand
-if($act==='demand_claim'&&isset($_GET['id'])){
-    if(!$IS_DEV&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Sem permissão'],403);
-    $id=(int)$_GET['id'];
-    $dem=$db->prepare("SELECT title,status FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
-    if(!$demRow) jsonR(['error'=>'Demanda não encontrada'],404);
-    // Check if dev is already assigned
-    $chk=$db->prepare("SELECT acceptance FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chk->execute([$id,$UID]);
-    $existing=$chk->fetch();
-    if($existing){
-        // Already assigned - accept if pending and start development
-        if($existing['acceptance']==='Pendente'){
-            $db->prepare("UPDATE devs_demandas SET acceptance='Aceita',assigned_at=NOW() WHERE demand_id=? AND user_id=?")->execute([$id,$UID]);
-            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Dev aceitou','Aceita')")->execute([$id,$UID]);
-        }
-        if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
-            $db->prepare("UPDATE demandas SET status='Em Andamento' WHERE id=?")->execute([$id]);
-            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
-            $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
-            foreach($admins as $a) if($a['id']!=$UID) notify($a['id'],'demand_status',"{$ME['name']} iniciou: {$demRow['title']}",'','demand:'.$id,'demand',$id);
-            logActivity($UID,"{$ME['name']} iniciou desenvolvimento: {$demRow['title']}",'demand',$id);
-            jsonR(['success'=>true,'started'=>true]);
-        }
-        jsonR(['success'=>true,'already'=>true]);
-    }
-    // Check if other devs are already assigned
-    $others=$db->prepare("SELECT u.id,u.name FROM devs_demandas dd JOIN usuarios u ON dd.user_id=u.id WHERE dd.demand_id=?"); $others->execute([$id]);
-    $otherDevs=$others->fetchAll();
-    $d=json_decode(file_get_contents('php://input'),true);
-    $force=$d['force']??false;
-    if(!empty($otherDevs)&&!$force){
-        jsonR(['conflict'=>true,'devs'=>array_column($otherDevs,'name'),'message'=>'Esta demanda já tem devs atribuídos: '.implode(', ',array_column($otherDevs,'name')).'. Deseja continuar?']);
-    }
-    // Assign dev
-    $db->prepare("INSERT IGNORE INTO devs_demandas (demand_id,user_id,assigned_by,acceptance) VALUES (?,?,?,'Aceita')")->execute([$id,$UID,$UID]);
-    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Dev assumiu a demanda',?)")->execute([$id,$UID,$ME['name']]);
-    // If demand is Aberta, move to Em Andamento
-    if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
-        $db->prepare("UPDATE demandas SET status='Em Andamento' WHERE id=?")->execute([$id]);
-        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
-    }
-    // Notify admins
-    $admins=$db->query("SELECT id FROM usuarios WHERE role LIKE '%admin%' AND active=1")->fetchAll();
-    foreach($admins as $a) if($a['id']!=$UID) notify($a['id'],'demand_assigned',"{$ME['name']} assumiu: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
-    // Notify other devs already on the demand
-    foreach($otherDevs as $od) notify($od['id']??0,'demand_assigned',"{$ME['name']} assumiu a demanda: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
-    logActivity($UID,"{$ME['name']} assumiu: {$demRow['title']}",'demand',$id);
-    jsonR(['success'=>true]);
-}
-
-// Status rápido (with workflow rules)
-if($act==='demand_status'&&isset($_GET['id'])){
-    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true); $ns=$d['status']??''; $justification=$d['justification']??'';
-    $old=$db->prepare("SELECT status,title FROM demandas WHERE id=?"); $old->execute([$id]); $oRow=$old->fetch(); $os=$oRow['status']??''; $demTitle=$oRow['title']??'';
-    if($os===$ns) jsonR(['success'=>true,'unchanged'=>true]);
-    // Rule: Only admin/diretor can cancel demandas
-    if($ns==='Cancelada'&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Apenas admin/diretor pode cancelar demandas. Use Solicitar Cancelamento.'],403);
-    // Rule: Dev cannot set Em Andamento directly (must use accept/claim)
-    if($ns==='Em Andamento'&&$os!=='Em Revisão'&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Use Assumir Demanda para iniciar'],403);
-    // Rule: Only admin can conclude from Em Revisão
-    if($ns==='Concluída'&&$os==='Em Revisão'&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Apenas admin/diretor pode concluir demandas em revisão'],403);
-    // Rule: Only admin can return from Em Revisão to Em Andamento
-    if($ns==='Em Andamento'&&$os==='Em Revisão'&&!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Apenas admin/diretor pode devolver demandas'],403);
-    $completedAt=null; if($ns==='Concluída') $completedAt=date('Y-m-d H:i:s');
-    $db->prepare("UPDATE demandas SET status=?,completed_at=? WHERE id=?")->execute([$ns,$completedAt,$id]);
-    $action='Status alterado';
-    if($os==='Em Revisão'&&$ns==='Em Andamento') $action='Devolvida para ajustes';
-    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value,details) VALUES (?,?,?,?,?,?)")->execute([$id,$UID,$action,$os,$ns,$justification]);
-    // Notify devs
-    $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $devs->execute([$id]);
-    $notifMsg=$action==='Devolvida para ajustes'?"{$demTitle}: Devolvida — {$justification}":"{$demTitle}: {$ns}";
-    $devIds=[];
-    foreach($devs->fetchAll() as $dv){ $devIds[]=$dv['user_id']; if($dv['user_id']!=$UID) notify($dv['user_id'],$ns==='Concluída'?'demand_completed':'demand_status',$ns==='Concluída'?"🎉 Parabéns \"{$demTitle}\" - Concluída!":$notifMsg,'',  "demand:{$id}",'demand',$id); }
-    if($ns==='Concluída'){
-        $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
-        foreach($admins as $a) if($a['id']!=$UID&&!in_array($a['id'],$devIds)) notify($a['id'],'demand_completed',"🎉 {$demTitle}: Concluída!",'',  "demand:{$id}",'demand',$id);
-    }
-
-    // If dev sends to review, notify admins
-    if($ns==='Em Revisão'){
-        $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
-        foreach($admins as $a) if($a["id"]!=$UID&&!in_array($a["id"],$devIds)) notify($a['id'],'demand_status',"{$demTitle}: Enviada para Revisão",'',"demand:{$id}",'demand',$id);
-    }
-    logActivity($UID,"Status: {$demTitle} → {$ns}",'demand',$id);
-    jsonR(['success'=>true]);
-}
-
-// Delegate demand to another dev
-if($act==='demand_delegate'&&isset($_GET['id'])){
-    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
-    $targetId=(int)($d['target_user_id']??0);
-    if(!$targetId) jsonR(['error'=>'Dev destino obrigatório'],400);
-    $dem=$db->prepare("SELECT title,status FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
-    if(!$demRow) jsonR(['error'=>'Demanda não encontrada'],404);
-    // Check if current user is assigned
-    $chk=$db->prepare("SELECT 1 FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chk->execute([$id,$UID]);
-    if(!$chk->fetch()&&!$IS_ADMIN) jsonR(['error'=>'Você não está nesta demanda'],403);
-    // Check if target is already assigned
-    $chk2=$db->prepare("SELECT 1 FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chk2->execute([$id,$targetId]);
-    if($chk2->fetch()) jsonR(['error'=>'Dev já está nesta demanda'],400);
-    // Get target name
-    $tgt=$db->prepare("SELECT name FROM usuarios WHERE id=?"); $tgt->execute([$targetId]); $tgtName=$tgt->fetch()['name']??'';
-    // Add target dev
-    $db->prepare("INSERT INTO devs_demandas (demand_id,user_id,assigned_by,acceptance) VALUES (?,?,?,'Pendente')")->execute([$id,$targetId,$UID]);
-    // Remove current user if dev (optional — keep both if they want)
-    if($IS_DEV&&($d['remove_self']??false)){
-        $db->prepare("DELETE FROM devs_demandas WHERE demand_id=? AND user_id=?")->execute([$id,$UID]);
-        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,?,?)")->execute([$id,$UID,'Delegou para',$tgtName]);
-    } else {
-        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,?,?)")->execute([$id,$UID,'Adicionou dev',$tgtName]);
-    }
-    // Notify target
-    notify($targetId,'demand_assigned',"{$ME['name']} delegou: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
-    logActivity($UID,"Delegou {$demRow['title']} → {$tgtName}",'demand',$id);
-    jsonR(['success'=>true]);
-}
-
-// Aprovação presidência
-if($act==='demand_approve'&&isset($_GET['id'])){
-    if(!$IS_ELEVATED) jsonR(['error'=>'Sem permissão'],403);
-    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
-    $st=$d['presidency_status']??'Aprovada'; $notes=$d['presidency_notes']??'';
-    // Get demand title
-    $dem=$db->prepare("SELECT title,created_by FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
-    $demTitle=$demRow['title']??'';
-    if($st==='Rejeitada'){
-        $db->prepare("UPDATE demandas SET presidency_status='Rejeitada',presidency_approved_by=?,presidency_approved_at=NOW(),presidency_notes=?,status='Aberta' WHERE id=?")->execute([$UID,$notes,$id]);
-    } else {
-        // Approved: set status to Aguardando Aceite so devs can receive it
-        $db->prepare("UPDATE demandas SET presidency_status=?,presidency_approved_by=?,presidency_approved_at=NOW(),presidency_notes=?,status='Aguardando Aceite' WHERE id=?")->execute([$st,$UID,$notes,$id]);
-        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado','Aberta','Aguardando Aceite')")->execute([$id,$UID]);
-        // Reset dev acceptances to Pendente
-        $db->prepare("UPDATE devs_demandas SET acceptance='Pendente',assigned_at=NULL WHERE demand_id=?")->execute([$id]);
-    }
-    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value,details) VALUES (?,?,CONCAT('Presidência: ',?),?,?)")->execute([$id,$UID,$st,$st,$notes]);
-    $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $devs->execute([$id]);
-    $notifyIds=array_unique(array_merge(array_column($devs->fetchAll(),'user_id'),$demRow['created_by']?[$demRow['created_by']]:[]));
-    foreach($notifyIds as $nid) if($nid!=$UID) notify($nid,'presidency',"{$demTitle}: Presidência {$st}",$notes,"demand:{$id}",'demand',$id);
-    if($st==='Rejeitada'){$admins=$db->query("SELECT id FROM usuarios WHERE role LIKE '%admin%' AND active=1")->fetchAll(); foreach($admins as $a) if($a['id']!=$UID) notify($a['id'],'presidency_rejected',"Presidência: {$demTitle} REJEITADA pela Presidência",$notes,"demand:{$id}",'demand',$id);}
-    logActivity($UID,"Presidência {$st}: {$demTitle}",'demand',$id);
-    jsonR(['success'=>true]);
-}
-
-// Resubmit demand for presidency approval after rejection
-if($act==='demand_resubmit'&&isset($_GET['id'])){
-    if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
-    $id=(int)$_GET['id'];
-    $db->prepare("UPDATE demandas SET presidency_status='Pendente',presidency_approved_by=NULL,presidency_approved_at=NULL,presidency_notes=NULL WHERE id=?")->execute([$id]);
-    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Reenviada para aprovação','Pendente')")->execute([$id,$UID]);
-    // Notify presidency usuarios
-    $pres=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%presidencia%' OR role LIKE '%admin%') AND active=1")->fetchAll();
-    $dem=$db->prepare("SELECT title FROM demandas WHERE id=?"); $dem->execute([$id]); $demT=$dem->fetch()['title']??'';
-    foreach($pres as $p) if($p['id']!=$UID) notify($p['id'],'presidency',"Demanda #{$id} reenviada para aprovação",'',"demand:{$id}",'demand',$id);
-    logActivity($UID,"Reenviou #{$id} para aprovação",'demand',$id);
-    jsonR(['success'=>true]);
-}
-
-// Comentário
-if($act==='demand_comment'&&isset($_GET['id'])){
-    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
-    $txt=trim($d['text']??''); if(!$txt) jsonR(['error'=>'Vazio'],400);
-    $mentions=$d['mentions']??[];
-    $db->prepare("INSERT INTO comentarios_demandas (demand_id,user_id,text) VALUES (?,?,?)")->execute([$id,$UID,$txt]);
-    // Get demand title and creator
-    $dem=$db->prepare("SELECT title,created_by FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
-    $demTitle=$demRow['title']??'';
-    $msg="{$ME['name']} comentou em: {$demTitle}";
-    $notified=[$UID];
-    // Notify mentioned usuarios first (with special message)
-    if(!empty($mentions)){
-        $mentionMsg="{$ME['name']} mencionou você em: {$demTitle}";
-        foreach($mentions as $mid){
-            $mid=(int)$mid;
-            if($mid && !in_array($mid,$notified)){
-                notify($mid,'comment',$mentionMsg,$txt,"demand:{$id}",'demand',$id);
-                $notified[]=$mid;
-            }
-        }
-    }
-    // Notify devs
-    $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?"); $devs->execute([$id]);
-    foreach($devs->fetchAll() as $dv){ if(!in_array($dv['user_id'],$notified)){ notify($dv['user_id'],'comment',$msg,$txt,"demand:{$id}",'demand',$id); $notified[]=$dv['user_id']; }}
-    // Notify admins
-    $admins=$db->query("SELECT id FROM usuarios WHERE role LIKE '%admin%' AND active=1")->fetchAll();
-    foreach($admins as $a){ if(!in_array($a['id'],$notified)){ notify($a['id'],'comment',$msg,$txt,"demand:{$id}",'demand',$id); $notified[]=$a['id']; }}
-    // Notify creator if different
-    if($demRow['created_by']&&!in_array($demRow['created_by'],$notified)) notify($demRow['created_by'],'comment',$msg,$txt,"demand:{$id}",'demand',$id);
-    logActivity($UID,"Comentou: {$demTitle}",'demand',$id);
-    jsonR(['success'=>true]);
-}
-
-// Upload imagem
-if($act==='demand_upload'&&isset($_GET['id'])){
-    $id=(int)$_GET['id'];
-    // Allow admin, dir, or any dev assigned to this demand
-    if(!$IS_ADMIN&&!$IS_DIR){
-        $chkDev=$db->prepare("SELECT 1 FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chkDev->execute([$id,$UID]);
-        if(!$chkDev->fetch()) jsonR(['error'=>'Sem permissão'],403);
-    }
-    if(empty($_FILES['image'])) jsonR(['error'=>'Sem imagem'],400);
-    $f=$_FILES['image']; if($f['error']!==0) jsonR(['error'=>'Erro upload: code '.$f['error']],400);
-    if($f['size']>MAX_UPLOAD_SIZE) jsonR(['error'=>'Muito grande (max 10MB)'],400);
-    $ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));
-    if(!in_array($ext,ALLOWED_EXTENSIONS)) jsonR(['error'=>'Formato inválido: '.$ext],400);
-    $fn='d'.$id.'_'.bin2hex(random_bytes(8)).'.'.strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));
-    $mime=mime_content_type($f["tmp_name"])?:"image/jpeg"; $data=file_get_contents($f["tmp_name"]); $db->prepare("INSERT INTO arquivos (nome_arquivo,nome_original,tipo_mime,dados,criado_por) VALUES (?,?,?,?,?)")->execute([$fn,$f["name"],$mime,$data,$UID]);
-    $db->prepare("INSERT INTO imagens_demandas (demand_id,filename,original_name,uploaded_by) VALUES (?,?,?,?)")->execute([$id,$fn,$f['name'],$UID]);
-    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Imagem adicionada',?)")->execute([$id,$UID,$f['name']]);
-    jsonR(['success'=>true,'filename'=>$fn]);
-}
-
-
 // ── SYSTEM DETAIL (comprehensive) ────────────────────────────────────────
 if ($act === 'system_detail' && isset($_GET['id'])) {
     try {
         $sysId = (int)$_GET['id'];
-
-        // System info
         $st = $db->prepare("SELECT s.*,
             GROUP_CONCAT(DISTINCT u.name ORDER BY u.name SEPARATOR ', ') as dev_names,
             GROUP_CONCAT(DISTINCT u.avatar_color ORDER BY u.name SEPARATOR ',') as dev_colors,
@@ -794,7 +828,6 @@ if ($act === 'system_detail' && isset($_GET['id'])) {
         $sys = $st->fetch(PDO::FETCH_ASSOC);
         if (!$sys) jsonR(['error' => 'Sistema não encontrado'], 404);
 
-        // Demands with dev info
         $stD = $db->prepare("SELECT d.id, d.title, d.status, d.priority, d.deadline, d.start_date,
             d.created_at, d.completed_at, d.requester,
             d.needs_presidency_approval, d.presidency_status
@@ -802,7 +835,6 @@ if ($act === 'system_detail' && isset($_GET['id'])) {
         $stD->execute([$sysId]);
         $demands = $stD->fetchAll(PDO::FETCH_ASSOC);
 
-        // Enrich demands with devs
         foreach ($demands as &$dem) {
             $stDv = $db->prepare("SELECT dd.user_id, u.name, u.avatar_color, u.avatar_file, u.role, dd.acceptance
                 FROM devs_demandas dd JOIN usuarios u ON dd.user_id = u.id WHERE dd.demand_id = ?");
@@ -810,7 +842,6 @@ if ($act === 'system_detail' && isset($_GET['id'])) {
             $dem['devs'] = $stDv->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        // Docs
         $stDoc = $db->prepare("SELECT d.id, d.title, d.description, d.category, d.password, d.created_at, d.updated_at,
             u.name as author_name,
             (SELECT COUNT(*) FROM doc_files df WHERE df.doc_id = d.id) as file_count
@@ -824,7 +855,6 @@ if ($act === 'system_detail' && isset($_GET['id'])) {
             unset($doc['password']);
         }
 
-        // History (activities related to demands in this system)
         $history = [];
         try {
             $stH = $db->prepare("SELECT h.*, u.name as user_name, d.title as demand_title
@@ -840,13 +870,11 @@ if ($act === 'system_detail' && isset($_GET['id'])) {
             $history = $stH->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) { $history = []; }
 
-        // Stats
         $total = count($demands);
         $done = count(array_filter($demands, fn($d) => $d['status'] === 'Concluída'));
         $active = count(array_filter($demands, fn($d) => in_array($d['status'], ['Em Andamento', 'Em Revisão', 'Aguardando Aceite'])));
         $urgent = count(array_filter($demands, fn($d) => $d['priority'] === 'Urgente' && !in_array($d['status'], ['Concluída', 'Cancelada'])));
 
-        // Average days to complete
         $avgDays = null;
         $completedWithDates = array_filter($demands, fn($d) => $d['status'] === 'Concluída' && $d['completed_at'] && $d['created_at']);
         if (count($completedWithDates) > 0) {
@@ -857,7 +885,6 @@ if ($act === 'system_detail' && isset($_GET['id'])) {
             $avgDays = round($totalDays / count($completedWithDates), 1);
         }
 
-        // SLA: on time = completed before or on deadline
         $slaTotal = 0; $slaOnTime = 0;
         foreach ($demands as $dd) {
             if ($dd['deadline'] && $dd['status'] === 'Concluída' && $dd['completed_at']) {
@@ -870,15 +897,9 @@ if ($act === 'system_detail' && isset($_GET['id'])) {
         $sys['docs'] = $docs;
         $sys['history'] = $history;
         $sys['stats'] = [
-            'total' => $total,
-            'done' => $done,
-            'active' => $active,
-            'urgent' => $urgent,
-            'avg_days' => $avgDays,
-            'sla_total' => $slaTotal,
-            'sla_on_time' => $slaOnTime
+            'total' => $total, 'done' => $done, 'active' => $active, 'urgent' => $urgent,
+            'avg_days' => $avgDays, 'sla_total' => $slaTotal, 'sla_on_time' => $slaOnTime
         ];
-
         jsonR($sys);
     } catch (Exception $e) {
         jsonR(['error' => $e->getMessage()], 500);
@@ -950,20 +971,110 @@ if($act==='user'&&isset($_GET['id'])){
     }
     if($method==='DELETE'){ if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403); $db->prepare("UPDATE usuarios SET active=0 WHERE id=?")->execute([$tid]); jsonR(['success'=>true]); }
 }
+
+// ── DEV DETAIL (comprehensive profile) ──────────────────────────────────
+if ($act === 'dev_detail' && isset($_GET['id'])) {
+    try {
+        $devId = (int)$_GET['id'];
+        if(!$IS_ADMIN && !$IS_DIR && $devId != $UID) jsonR(['error'=>'Acesso negado'],403);
+
+        $st = $db->prepare("SELECT id,name,email,role,avatar_color,avatar_file,last_login,created_at,active FROM usuarios WHERE id=?");
+        $st->execute([$devId]);
+        $user = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$user) jsonR(['error' => 'Usuário não encontrado'], 404);
+
+        $stD = $db->prepare("SELECT d.id, d.title, d.status, d.priority, d.deadline, d.start_date,
+            d.created_at, d.completed_at, d.requester, d.description,
+            s.name as system_name, s.id as system_id,
+            dd.acceptance, dd.assigned_at, dd.rejection_reason
+            FROM demandas d
+            JOIN devs_demandas dd ON d.id = dd.demand_id
+            LEFT JOIN sistemas s ON d.system_id = s.id
+            WHERE dd.user_id = ?
+            ORDER BY d.created_at DESC");
+        $stD->execute([$devId]);
+        $demands = $stD->fetchAll(PDO::FETCH_ASSOC);
+
+        $total = count($demands);
+        $concluidas = count(array_filter($demands, fn($d) => $d['status'] === 'Concluída'));
+        $ativas = count(array_filter($demands, fn($d) => in_array($d['status'], ['Aberta','Aguardando Aceite','Em Andamento','Em Revisão'])));
+
+        $avgDays = null;
+        $completed = array_filter($demands, fn($d) => $d['status'] === 'Concluída' && $d['completed_at'] && $d['created_at']);
+        if (count($completed) > 0) {
+            $totalDays = 0;
+            foreach ($completed as $cd) {
+                $totalDays += (strtotime($cd['completed_at']) - strtotime($cd['created_at'])) / 86400;
+            }
+            $avgDays = round($totalDays / count($completed), 1);
+        }
+
+        $accSt = $db->prepare("SELECT acceptance, COUNT(*) as c FROM devs_demandas WHERE user_id=? GROUP BY acceptance");
+        $accSt->execute([$devId]);
+        $accRaw = $accSt->fetchAll(PDO::FETCH_ASSOC);
+        $acceptances = [];
+        foreach ($accRaw as $a) { $acceptances[$a['acceptance']] = (int)$a['c']; }
+
+        $relCount = 0;
+        try {
+            $relSt = $db->prepare("SELECT COUNT(*) as c FROM relatorios_diarios WHERE user_id=?");
+            $relSt->execute([$devId]);
+            $relCount = (int)$relSt->fetch()['c'];
+        } catch (Exception $e) {}
+
+        $monthlySt = $db->prepare("SELECT DATE_FORMAT(d.completed_at,'%Y-%m') as month, COUNT(*) as total
+            FROM demandas d JOIN devs_demandas dd ON d.id=dd.demand_id
+            WHERE dd.user_id=? AND d.status='Concluída' AND d.completed_at IS NOT NULL
+            GROUP BY month ORDER BY month DESC LIMIT 12");
+        $monthlySt->execute([$devId]);
+        $monthly = $monthlySt->fetchAll(PDO::FETCH_ASSOC);
+
+        $sysSt = $db->prepare("SELECT s.id, s.name, s.status, s.url, s.technology,
+            (SELECT COUNT(*) FROM demandas WHERE system_id=s.id) as demand_count,
+            (SELECT COUNT(*) FROM documentations WHERE system_id=s.id) as doc_count
+            FROM sistemas s JOIN devs_sistemas sd ON s.id = sd.system_id
+            WHERE sd.user_id = ?
+            ORDER BY s.name");
+        $sysSt->execute([$devId]);
+        $sistemas = $sysSt->fetchAll(PDO::FETCH_ASSOC);
+
+        $activity = [];
+        try {
+            $actSt = $db->prepare("SELECT a.*, d.title as demand_title
+                FROM registro_atividades a
+                LEFT JOIN demandas d ON a.entity_type='demand' AND a.entity_id = d.id
+                WHERE a.user_id = ?
+                ORDER BY a.created_at DESC
+                LIMIT 100");
+            $actSt->execute([$devId]);
+            $activity = $actSt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) { $activity = []; }
+
+        $user['demands'] = $demands;
+        $user['sistemas'] = $sistemas;
+        $user['activity'] = $activity;
+        $user['monthly'] = $monthly;
+        $user['acceptances'] = $acceptances;
+        $user['stats'] = [
+            'total' => $total, 'concluidas' => $concluidas, 'ativas' => $ativas,
+            'avg_completion_days' => $avgDays, 'relatorios_diarios' => $relCount
+        ];
+        jsonR($user);
+    } catch (Exception $e) {
+        jsonR(['error' => $e->getMessage()], 500);
+    }
+}
+
 if($act==='user_stats'&&isset($_GET['id'])){
     $tid=(int)$_GET['id'];
     if(!$IS_ADMIN&&!$IS_DIR&&$tid!=$UID) jsonR(['error'=>'Acesso negado'],403);
     $s=$db->prepare("SELECT COUNT(*) as total, COALESCE(SUM(CASE WHEN status IN('Aberta','Aguardando Aceite','Em Andamento','Em Revisão') THEN 1 ELSE 0 END),0) as ativas, COALESCE(SUM(CASE WHEN status='Concluída' THEN 1 ELSE 0 END),0) as concluidas FROM demandas WHERE id IN (SELECT demand_id FROM devs_demandas WHERE user_id=?)");
     $s->execute([$tid]); $st=$s->fetch();
     $s=$db->prepare("SELECT s.id,s.name FROM sistemas s JOIN devs_sistemas sd ON s.id=sd.system_id WHERE sd.user_id=?"); $s->execute([$tid]); $st['sistemas']=$s->fetchAll();
-    // Aceites
     $s=$db->prepare("SELECT acceptance,COUNT(*) as c FROM devs_demandas WHERE user_id=? GROUP BY acceptance"); $s->execute([$tid]); $st['acceptances']=$s->fetchAll();
-    // Tempo médio de conclusão
     $s=$db->prepare("SELECT AVG(DATEDIFF(d.completed_at,d.created_at)) as avg_days FROM demandas d JOIN devs_demandas dd ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Concluída' AND d.completed_at IS NOT NULL");
     $s->execute([$tid]); $st['avg_completion_days']=$s->fetch()['avg_days'];
-    // Daily reports count
     $s=$db->prepare("SELECT COUNT(*) as c FROM relatorios_diarios WHERE user_id=?"); $s->execute([$tid]); $st['relatorios_diarios']=$s->fetch()['c'];
-    // Por mês
     $s=$db->prepare("SELECT DATE_FORMAT(d.completed_at,'%Y-%m') as month, COUNT(*) as total FROM demandas d JOIN devs_demandas dd ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Concluída' AND d.completed_at IS NOT NULL GROUP BY month ORDER BY month DESC LIMIT 12");
     $s->execute([$tid]); $st['monthly']=$s->fetchAll();
     jsonR($st);
@@ -987,7 +1098,6 @@ if($act==='my_history'){
 if($act==='avisos'){
     if($method==='GET'){
         $w=["n.active=1","(n.expires_at IS NULL OR n.expires_at>=CURDATE())"]; $p=[];
-        // Build target roles based on all user roles
         $targetRoles=["'todos'"];
         if($IS_ADMIN) $targetRoles[]="'admin'";
         if($IS_DEV) $targetRoles[]="'dev'";
@@ -1006,11 +1116,13 @@ if($act==='avisos'){
         $nid=$db->lastInsertId();
         $noticeTitle=trim($d['title']??'');
         $targetRole=$d['target_role']??'todos';
-        // Notify target usuarios
         $w='active=1 AND id!=?';$p=[$UID];
         if($targetRole!=='todos'){$w.=" AND role LIKE ?";$p[]="%{$targetRole}%";}
         $targets=$db->prepare("SELECT id FROM usuarios WHERE {$w}");$targets->execute($p);
-        foreach($targets->fetchAll() as $t) notify($t['id'],'notice',"Novo aviso: {$noticeTitle}",'',"notice:{$nid}",'notice',$nid);
+        foreach($targets->fetchAll() as $t){
+            notify($t['id'],'notice',"Novo aviso: {$noticeTitle}",'',"notice:{$nid}",'notice',$nid);
+            sendPushToUser($db, (int)$t['id'], ['title'=>'📢 Novo Aviso','message'=>$noticeTitle,'url'=>'/index.php#avisos']);
+        }
         logActivity($UID,"Aviso: {$noticeTitle}",'notice',$nid);
         jsonR(['success'=>true,'id'=>$nid],201);
     }
@@ -1019,9 +1131,6 @@ if($act==='notice'&&isset($_GET['id'])){
     $id=(int)$_GET['id'];
     if($method==='GET'){
         $s=$db->prepare("SELECT n.*,u.name as author_name FROM avisos n LEFT JOIN usuarios u ON n.created_by=u.id WHERE n.id=?"); $s->execute([$id]); $n=$s->fetch();
-
-// [REMOVED] duplicate reports block with wrong table names
-
         if($n) jsonR($n); else jsonR(['error'=>'Não encontrado'],404);
     }
     if($method==='PUT'){
@@ -1053,7 +1162,11 @@ if($act==='reunioes'){
         $mid=$db->lastInsertId();
         if(!empty($d['participant_ids'])){
             $ins=$db->prepare("INSERT INTO participantes_reunioes (meeting_id,user_id) VALUES (?,?)");
-            foreach($d['participant_ids'] as $pid){ $ins->execute([$mid,$pid]); notify($pid,'meeting',"Reunião agendada: ".trim($d['title']??''),date('d/m',strtotime($d['meeting_date']))." às ".substr($d['meeting_time']??'10:00',0,5),"meeting:{$mid}",'meeting',$mid); }
+            foreach($d['participant_ids'] as $pid){
+                $ins->execute([$mid,$pid]);
+                notify($pid,'meeting',"Reunião agendada: ".trim($d['title']??''),date('d/m',strtotime($d['meeting_date']))." às ".substr($d['meeting_time']??'10:00',0,5),"meeting:{$mid}",'meeting',$mid);
+                sendPushToUser($db, (int)$pid, ['title'=>'📅 Reunião Agendada','message'=>trim($d['title']??'').' — '.date('d/m',strtotime($d['meeting_date'])).' '.substr($d['meeting_time']??'10:00',0,5),'url'=>'/index.php#reunioes']);
+            }
         }
         jsonR(['success'=>true,'id'=>$mid],201);
     }
@@ -1063,7 +1176,6 @@ if($act==='meeting'&&isset($_GET['id'])){
     if($method==='PUT'){
         if(!$IS_ADMIN) jsonR(['error'=>'Apenas administradores podem editar reuniões'],403);
         $d=json_decode(file_get_contents('php://input'),true);
-        // Get old participants to detect new ones
         $oldParts=$db->prepare("SELECT user_id FROM participantes_reunioes WHERE meeting_id=?"); $oldParts->execute([$id]); $oldIds=array_column($oldParts->fetchAll(),'user_id');
         $db->prepare("UPDATE reunioes SET title=?,description=?,meeting_date=?,meeting_time=?,duration_minutes=?,location=?,is_online=?,online_link=?,status=? WHERE id=?")
             ->execute([$d['title'],$d['description']??'',$d['meeting_date'],$d['meeting_time'],$d['duration_minutes']??60,$d['location']??'Sala TI',$d['is_online']?1:0,$d['online_link']??'',$d['status']??'Agendada',$id]);
@@ -1074,11 +1186,13 @@ if($act==='meeting'&&isset($_GET['id'])){
             foreach($newIds as $pid){
                 $ins->execute([$id,$pid]);
                 if(in_array($pid,$oldIds)){
-                    // Existing participant - notify about update
-                    if($pid!=$UID) notify($pid,'meeting_updated',"Reunião atualizada: ".trim($d['title']??''),date('d/m',strtotime($d['meeting_date']))." às ".substr($d['meeting_time']??'10:00',0,5),"meeting:{$id}",'meeting',$id);
+                    if($pid!=$UID){
+                        notify($pid,'meeting_updated',"Reunião atualizada: ".trim($d['title']??''),date('d/m',strtotime($d['meeting_date']))." às ".substr($d['meeting_time']??'10:00',0,5),"meeting:{$id}",'meeting',$id);
+                        sendPushToUser($db, (int)$pid, ['title'=>'📅 Reunião Atualizada','message'=>trim($d['title']??'').' — '.date('d/m',strtotime($d['meeting_date'])),'url'=>'/index.php#reunioes']);
+                    }
                 } else {
-                    // New participant - notify about addition
                     notify($pid,'meeting',"Você foi adicionado à reunião: ".trim($d['title']??''),date('d/m',strtotime($d['meeting_date']))." às ".substr($d['meeting_time']??'10:00',0,5),"meeting:{$id}",'meeting',$id);
+                    sendPushToUser($db, (int)$pid, ['title'=>'📅 Nova Reunião','message'=>'Você foi adicionado: '.trim($d['title']??''),'url'=>'/index.php#reunioes']);
                 }
             }
         }
@@ -1103,9 +1217,13 @@ if($act==='solicitacoes'){
         $db->prepare("INSERT INTO solicitacoes (title,description,system_id,type,priority,created_by) VALUES (?,?,?,?,?,?)")
             ->execute([$title,$d['description']??'',$d['system_id']?:null,$d['type']??'Melhoria',$d['priority']??'Média',$UID]);
         $sid=$db->lastInsertId();
-        // Notificar admins e diretores
         $reviewers=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
-        foreach($reviewers as $a) if($a['id']!=$UID) notify($a['id'],'solicitation',"Nova solicitação: {$title}",'',"solicitation:{$sid}",'solicitation',$sid);
+        foreach($reviewers as $a){
+            if($a['id']!=$UID){
+                notify($a['id'],'solicitation',"Nova solicitação: {$title}",'',"solicitation:{$sid}",'solicitation',$sid);
+                sendPushToUser($db, (int)$a['id'], ['title'=>'📝 Nova Solicitação','message'=>"De {$ME['name']}: {$title}",'url'=>'/index.php#solicitacoes']);
+            }
+        }
         logActivity($UID,"Solicitação #{$sid}: {$title}",'solicitation',$sid);
         jsonR(['success'=>true,'id'=>$sid],201);
     }
@@ -1117,35 +1235,34 @@ if($act==='solicitation_review'&&isset($_GET['id'])){
     $existingDemandId=$d['demand_id']??null;
     $db->prepare("UPDATE solicitacoes SET status=?,reviewed_by=?,reviewed_at=NOW(),review_notes=? WHERE id=?")->execute([$status,$UID,$notes,$id]);
 
-    // Se aprovada
     if($status==='Aprovada'){
         $sol=$db->prepare("SELECT * FROM solicitacoes WHERE id=?"); $sol->execute([$id]); $sol=$sol->fetch();
         if($existingDemandId){
-            // Demanda já foi criada pelo formulário — apenas linkar
             $did=(int)$existingDemandId;
             $db->prepare("UPDATE demandas SET from_solicitation_id=? WHERE id=?")->execute([$id,$did]);
         } else {
-            // Auto-criar demanda (fallback)
             $solCreatorPre=$db->prepare("SELECT u.name FROM usuarios u WHERE u.id=?"); $solCreatorPre->execute([$sol['created_by']??0]); $solRequester=$solCreatorPre->fetchColumn()?:('Solicitação #'.$id);
             $db->prepare("INSERT INTO demandas (title,description,system_id,priority,status,requester,needs_presidency_approval,from_solicitation_id,created_by) VALUES (?,?,?,?,'Aberta',?,0,?,?)")
                 ->execute([$sol['title'],$sol['description'],$sol['system_id'],$sol['priority'],$solRequester,$id,$UID]);
             $did=$db->lastInsertId();
         }
         $db->prepare("UPDATE solicitacoes SET status='Convertida',converted_demand_id=? WHERE id=?")->execute([$did,$id]);
-        // Get solicitation creator name
         $solCreator=$db->prepare("SELECT u.name FROM usuarios u WHERE u.id=?"); $solCreator->execute([$sol['created_by']??0]); $solCreatorName=$solCreator->fetchColumn();
-        // Update requester to show original solicitor name
         if($solCreatorName) $db->prepare("UPDATE demandas SET requester=? WHERE id=? AND (requester IS NULL OR requester='' OR requester LIKE 'Solicitação%')")->execute([$solCreatorName,$did]);
         $histDetail="Origem: Solicitação #{$id}".($solCreatorName?" · Solicitante: {$solCreatorName}":'');
         $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value,details) VALUES (?,?,'Criada de solicitação','Aberta',?)")->execute([$did,$UID,$histDetail]);
-        // Notificar criador
-        if($sol['created_by']) notify($sol['created_by'],'solicitation_approved',"Solicitação #{$id} aprovada e convertida em demanda #{$did}",$notes,"demand:{$did}",'demand',$did);
-        // Notificar todos sobre nova demanda
+        if($sol['created_by']){
+            notify($sol['created_by'],'solicitation_approved',"Solicitação #{$id} aprovada e convertida em demanda #{$did}",$notes,"demand:{$did}",'demand',$did);
+            sendPushToUser($db, (int)$sol['created_by'], ['title'=>'✅ Solicitação Aprovada','message'=>"Sua solicitação foi aprovada e virou demanda #{$did}",'url'=>'/index.php#demandas']);
+        }
         $allU=$db->prepare("SELECT id FROM usuarios WHERE active=1 AND id!=? AND id!=?"); $allU->execute([$UID,$sol['created_by']??0]);
         foreach($allU->fetchAll() as $au) notify($au['id'],'demand_new',"Nova demanda: ".($sol['title']??""),"Convertida da solicitação #{$id} por {$ME['name']}","demand:{$did}",'demand',$did);
     } else {
         $sol=$db->prepare("SELECT created_by FROM solicitacoes WHERE id=?"); $sol->execute([$id]); $sol=$sol->fetch();
-        if($sol['created_by']) notify($sol['created_by'],'solicitation_rejected',"Solicitação #{$id} rejeitada",$notes,"",'solicitation',$id);
+        if($sol['created_by']){
+            notify($sol['created_by'],'solicitation_rejected',"Solicitação #{$id} rejeitada",$notes,"",'solicitation',$id);
+            sendPushToUser($db, (int)$sol['created_by'], ['title'=>'❌ Solicitação Rejeitada','message'=>"Sua solicitação #{$id} foi rejeitada",'url'=>'/index.php#solicitacoes']);
+        }
     }
     logActivity($UID,"Solicitação #{$id}: {$status}",'solicitation',$id);
     jsonR(['success'=>true]);
@@ -1240,7 +1357,6 @@ if($act==='reports'){
         $s->execute([$dateFrom.' 00:00:00',$dateTo.' 23:59:59']); $result['overview']=$s->fetch();
         $s=$db->prepare("SELECT COUNT(*) as total,SUM(CASE WHEN completed_at<=CONCAT(deadline,' 23:59:59') THEN 1 ELSE 0 END) as on_time FROM demandas WHERE status='Concluída' AND deadline IS NOT NULL AND completed_at IS NOT NULL AND created_at BETWEEN ? AND ?");
         $s->execute([$dateFrom.' 00:00:00',$dateTo.' 23:59:59']); $result['sla']=$s->fetch();
-        // Status distribution for pie chart
         $s=$db->prepare("SELECT status,COUNT(*) as c FROM demandas WHERE created_at BETWEEN ? AND ? GROUP BY status ORDER BY c DESC");
         $s->execute([$dateFrom.' 00:00:00',$dateTo.' 23:59:59']); $result['status_dist']=$s->fetchAll();
         jsonR($result);
@@ -1271,8 +1387,6 @@ if($act==='calendar'){
     $start=$month.'-01';
     $end=date('Y-m-t',strtotime($start));
     $w=['1=1']; $p=[];
-    // All usuarios see full calendar
-    // Demands with deadlines
     $s=$db->prepare("SELECT d.id,d.title,d.deadline,d.start_date,d.status,d.priority,d.completed_at,s.name as system_name,
         GROUP_CONCAT(DISTINCT u.name SEPARATOR ', ') as dev_names
         FROM demandas d
@@ -1288,7 +1402,6 @@ if($act==='calendar'){
     $p=array_merge($p,[$start,$end,$start,$end,$start.' 00:00:00',$end.' 23:59:59']);
     $s->execute($p);
     $demands=$s->fetchAll();
-    // Meetings
     $meetW="m.meeting_date BETWEEN ? AND ?";
     $meetP=[$start,$end];
     if($IS_DEV||$IS_USER){
@@ -1298,14 +1411,12 @@ if($act==='calendar'){
     $s=$db->prepare("SELECT m.id,m.title,m.meeting_date,m.meeting_time,m.duration_minutes,m.is_online,m.location FROM reunioes m WHERE $meetW ORDER BY m.meeting_date,m.meeting_time");
     $s->execute($meetP);
     $meetings=$s->fetchAll();
-    // Sprints overlapping this month
     $s=$db->prepare("SELECT sp.*,
         (SELECT COUNT(*) FROM demandas WHERE sprint_id=sp.id) as demand_count,
         (SELECT COUNT(*) FROM demandas WHERE sprint_id=sp.id AND status='Concluída') as done_count
         FROM sprints sp WHERE sp.start_date<=? AND sp.end_date>=? ORDER BY sp.start_date");
     $s->execute([$end,$start]);
     $sprints=$s->fetchAll();
-    // Notices with show_calendar=1
     $nW="n.active=1 AND n.show_calendar=1 AND n.event_date BETWEEN ? AND ?";
     $nP=[$start,$end];
     $roleConds=["n.target_role='todos'"];
@@ -1317,7 +1428,6 @@ if($act==='calendar'){
     $s=$db->prepare("SELECT n.id,n.title,n.priority,n.event_date FROM avisos n WHERE {$nW} ORDER BY n.event_date");
     $s->execute($nP);
     $notices=$s->fetchAll();
-    // Personal calendar notes
     $s=$db->prepare("SELECT id,note_date,content FROM anotacoes_calendario WHERE user_id=? AND note_date BETWEEN ? AND ? ORDER BY note_date");
     $s->execute([$UID,$start,$end]);
     $notes=$s->fetchAll();
@@ -1360,7 +1470,6 @@ if($act==='sprint'&&isset($_GET['id'])){
         jsonR(['success'=>true]);
     }
 }
-// Assign/remove demand from sprint
 if($act==='demand_sprint'&&isset($_GET['id'])){
     if(!$IS_ADMIN&&!$IS_DIR) jsonR(['error'=>'Sem permissão'],403);
     $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
@@ -1384,14 +1493,11 @@ if($act==='audit'){
     $s=$db->prepare("SELECT a.*,u.name as user_name,u.email as user_email,u.role as user_role FROM registro_atividades a LEFT JOIN usuarios u ON a.user_id=u.id WHERE ".implode(' AND ',$w)." ORDER BY a.created_at DESC LIMIT $limit");
     $s->execute($p);
     $logs=$s->fetchAll();
-    // Stats
     $s2=$db->prepare("SELECT COUNT(*) as total FROM registro_atividades a WHERE ".implode(' AND ',$w));
     $s2->execute($p);
     $total=$s2->fetch()['total'];
-    // By user stats
     $s3=$db->query("SELECT u.name,u.role,COUNT(a.id) as actions FROM registro_atividades a JOIN usuarios u ON a.user_id=u.id GROUP BY a.user_id ORDER BY actions DESC LIMIT 20");
     $byUser=$s3->fetchAll();
-    // By type stats
     $s4=$db->query("SELECT entity_type,COUNT(*) as c FROM registro_atividades WHERE entity_type IS NOT NULL GROUP BY entity_type ORDER BY c DESC");
     $byType=$s4->fetchAll();
     jsonR(['logs'=>$logs,'total'=>$total,'by_user'=>$byUser,'by_type'=>$byType]);
@@ -1466,26 +1572,20 @@ if($act==='profile'){
         $s=$db->prepare("SELECT id,name,email,role,avatar_color,avatar_file,last_login,created_at FROM usuarios WHERE id=?");
         $s->execute([$UID]);
         $u=$s->fetch();
-        // Basic stats
         $st1=$db->prepare("SELECT COUNT(*) as c FROM devs_demandas WHERE user_id=?"); $st1->execute([$UID]);
         $st2=$db->prepare("SELECT COUNT(*) as c FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Concluída'"); $st2->execute([$UID]);
         $st3=$db->prepare("SELECT COUNT(*) as c FROM comentarios_demandas WHERE user_id=?"); $st3->execute([$UID]);
         $st4=$db->prepare("SELECT COUNT(*) as c FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Em Andamento'"); $st4->execute([$UID]);
         $st5=$db->prepare("SELECT COUNT(*) as c FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Em Revisão'"); $st5->execute([$UID]);
         $st6=$db->prepare("SELECT COUNT(*) as c FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Cancelada'"); $st6->execute([$UID]);
-        // By priority
         $stP=$db->prepare("SELECT d.priority,COUNT(*) as c FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? GROUP BY d.priority"); $stP->execute([$UID]);
         $byPri=array();while($r=$stP->fetch())$byPri[$r['priority']]=(int)$r['c'];
-        // By system
         $stS=$db->prepare("SELECT s.name,COUNT(*) as c FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id LEFT JOIN sistemas s ON d.system_id=s.id WHERE dd.user_id=? GROUP BY s.name ORDER BY c DESC LIMIT 5"); $stS->execute([$UID]);
         $bySys=$stS->fetchAll();
-        // Monthly completed (last 6 months)
         $stM=$db->prepare("SELECT DATE_FORMAT(d.completed_at,'%Y-%m') as mes,COUNT(*) as c FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Concluída' AND d.completed_at>=DATE_SUB(NOW(),INTERVAL 6 MONTH) GROUP BY mes ORDER BY mes"); $stM->execute([$UID]);
         $monthly=$stM->fetchAll();
-        // Avg completion time
         $stAvg=$db->prepare("SELECT AVG(DATEDIFF(d.completed_at,d.created_at)) as avg_days FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Concluída' AND d.completed_at IS NOT NULL"); $stAvg->execute([$UID]);
         $avgDays=$stAvg->fetch()['avg_days'];
-        // Recent demandas
         $stRec=$db->prepare("SELECT d.id,d.title,d.status,d.priority,d.created_at,d.completed_at FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? ORDER BY d.created_at DESC LIMIT 5"); $stRec->execute([$UID]);
         $recentDem=$stRec->fetchAll();
 
@@ -1512,7 +1612,6 @@ if($act==='profile_avatar'&&$method==='POST'){
     $filename=handleUploadBlob($_FILES["avatar"],$db);
     if(!$filename) jsonR(['error'=>'Erro no upload. Verifique tipo/tamanho.'],400);
     $old=$db->prepare("SELECT avatar_file FROM usuarios WHERE id=?"); $old->execute([$UID]); $oldFile=$old->fetchColumn();
-    // arquivo antigo removido automaticamente pelo DB
     $db->prepare("UPDATE usuarios SET avatar_file=? WHERE id=?")->execute([$filename,$UID]);
     logActivity($UID,'avatar_updated','user',$UID);
     jsonR(['success'=>true,'filename'=>$filename]);
@@ -1613,12 +1712,14 @@ if($act==='avisos_form'&&$method==='POST'){
         ->execute([$title,$content,$priority,$target,$UID,$pinned,$expires,$showBoard,$showCal,$eventDate,$imgFile]);
     $nid=$db->lastInsertId();
     logActivity($UID,'notice_created','notice',$nid,$title);
-    // Notify usuarios
     $users=$db->query("SELECT id FROM usuarios WHERE active=1 AND id!=$UID")->fetchAll();
-    foreach($users as $u){ notify($u['id'],'notice','Novo Aviso: '.$title,'','notice:'.$nid,'notice',$nid); }
+    foreach($users as $u){
+        notify($u['id'],'notice','Novo Aviso: '.$title,'','notice:'.$nid,'notice',$nid);
+        sendPushToUser($db, (int)$u['id'], ['title'=>'📢 Novo Aviso','message'=>$title,'url'=>'/index.php#avisos']);
+    }
     jsonR(['success'=>true,'id'=>$nid]);
 }
-if($act==='notice_form'&&isset($_GET['id'])&&$method==='POST'){
+if($act==='avisos_form'&&isset($_GET['id'])&&$method==='POST'){
     if(!meHasRole(['admin','presidencia','diretor'])) jsonR(['error'=>'Sem permissão'],403);
     $id=(int)$_GET['id'];
     $title=trim($_POST['title']??''); $content=trim($_POST['content']??'');
@@ -1632,9 +1733,6 @@ if($act==='notice_form'&&isset($_GET['id'])&&$method==='POST'){
     $imgFile=null;
     if(!empty($_FILES['image'])&&$_FILES['image']['error']===UPLOAD_ERR_OK){
         $imgFile=handleUploadBlob($_FILES["image"],$db);
-        // Remove old image
-        $old=$db->prepare("SELECT image_file FROM avisos WHERE id=?"); $old->execute([$id]); $oldImg=$old->fetchColumn();
-        // arquivo antigo removido automaticamente
     }
     $sql="UPDATE avisos SET title=?,content=?,priority=?,target_role=?,pinned=?,expires_at=?,show_board=?,show_calendar=?,event_date=?";
     $params=[$title,$content,$priority,$target,$pinned,$expires,$showBoard,$showCal,$eventDate];
@@ -1645,6 +1743,39 @@ if($act==='notice_form'&&isset($_GET['id'])&&$method==='POST'){
     jsonR(['success'=>true]);
 }
 
+// ── Permissões de usuário ────────────────────────────────
+if($act==='user_permissions'){
+    $db->exec("CREATE TABLE IF NOT EXISTS user_permissions (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, permission VARCHAR(100) NOT NULL, granted TINYINT(1) DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_user_perm (user_id, permission)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
+    $uid=(int)($_GET['user_id']??0);
+    if(!$uid) jsonR(['error'=>'user_id obrigatorio'],400);
+    if($method==='GET'){
+        $st=$db->prepare("SELECT permission,granted FROM user_permissions WHERE user_id=?");
+        $st->execute([$uid]);
+        $rows=[];
+        while($r=$st->fetch()){ $rows[$r['permission']]=(int)$r['granted']; }
+        jsonR(['permissions'=>$rows,'user_id'=>$uid]);
+    }
+    if($method==='POST'){
+        $d=json_decode(file_get_contents('php://input'),true);
+        $perms=$d['permissions']??[];
+        $st=$db->prepare("INSERT INTO user_permissions (user_id,permission,granted) VALUES (?,?,?) ON DUPLICATE KEY UPDATE granted=VALUES(granted),updated_at=NOW()");
+        foreach($perms as $p){ $st->execute([$uid,$p['permission'],$p['granted']?1:0]); }
+        logActivity($UID,'permissions_updated','user',$uid,'Permissoes atualizadas');
+        jsonR(['success'=>true]);
+    }
+}
+if($act==='user_permissions_reset'&&$method==='POST'){
+    if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
+    $d=json_decode(file_get_contents('php://input'),true);
+    $uid=(int)($d['user_id']??0);
+    if(!$uid) jsonR(['error'=>'user_id obrigatorio'],400);
+    $db->prepare("DELETE FROM user_permissions WHERE user_id=?")->execute([$uid]);
+    logActivity($UID,'permissions_reset','user',$uid,'Permissoes resetadas');
+    jsonR(['success'=>true]);
+}
+
+// ===== 404 FALLBACK =====
 jsonR(['error'=>'Endpoint não encontrado'],404);
 
 } catch (Exception $e) {

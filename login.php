@@ -105,7 +105,7 @@ body{
     margin:0 auto 16px;
     display:flex;align-items:center;justify-content:center;
     background:transparent;
-    position:relative;overflow:hidden;
+    position:relative;overflow:visible;
 }
 .brand-logo img{width:160px;height:auto;position:relative;z-index:1}
 .brand-logo .fallback{
@@ -167,7 +167,7 @@ body{
     width:100%;padding:14px;border:none;border-radius:12px;
     background:linear-gradient(135deg,var(--acc),var(--acc2));
     color:#fff;font-size:15px;font-weight:600;cursor:pointer;
-    font-family:inherit;position:relative;overflow:hidden;
+    font-family:inherit;position:relative;overflow:visible;
     transition:transform .2s,box-shadow .2s;
     box-shadow:0 4px 16px rgba(59,130,246,.3);
 }
@@ -212,7 +212,7 @@ body{
 /* === RESPONSIVE === */
 @media(max-width:480px){
     .login-card{padding:32px 24px;border-radius:16px}
-    .brand-logo{width:60px;height:60px}
+    .brand-logo{width:120px;height:auto}
     .brand h1{font-size:18px}
 }
 </style>
@@ -274,7 +274,7 @@ body{
             <p>Acesso restrito ao setor de TI</p>
             <div class="hint">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                Senha padrão: admin123
+                Senha padrão: Assego@123
             </div>
         </div>
     </div>

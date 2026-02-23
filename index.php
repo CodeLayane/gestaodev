@@ -25,11 +25,18 @@ if (!$loggedIn || !$user) {
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Gestão Dev ASSEGO</title>
-<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="icon" type="image/png" href="/layane/gestaodev/assets/img/favicon.png">
+<link rel="manifest" href="/layane/gestaodev/manifest.php">
+<meta name="theme-color" content="#6366f1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GestãoDev">
+<link rel="apple-touch-icon" href="assets/img/logo.png">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="assets/css/app.css">
 </head>
+
 <body>
 <aside class="sidebar" id="sidebar">
   <div class="sb-brand" style="justify-content:center;padding:16px 12px"><img src="assets/img/logo.png" alt="Logo" style="width:140px;height:auto" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="sb-icon" style="display:none">TI</div></div>
@@ -63,7 +70,7 @@ if (!$loggedIn || !$user) {
     <?php endif; ?>
   </nav>
   <div class="sb-user">
-    <div class="av" style="background:<?=htmlspecialchars($user['avatar_color'])?>"><?php if(!empty($user['avatar_file'])):?><img src="uploads/avatars/<?=htmlspecialchars($user['avatar_file'])?>" style="width:100%;height:100%;border-radius:50%;object-fit:cover"><?php else:?><?=mb_substr($user['name'],0,1)?><?php endif;?></div>
+    <div class="av" style="background:<?=htmlspecialchars($user['avatar_color'])?>"><?php if(!empty($user['avatar_file'])):?><img src="api.php?action=arquivo&f=<?=htmlspecialchars($user['avatar_file'])?>" style="width:100%;height:100%;border-radius:50%;object-fit:cover"><?php else:?><?=mb_substr($user['name'],0,1)?><?php endif;?></div>
     <div class="info"><div class="name"><?=htmlspecialchars($user['name'])?></div><div class="role"><?php $roleLabels=['admin'=>'Admin','dev'=>'Dev','diretor'=>'Diretor','presidencia'=>'Presid.','usuario'=>'Usuário']; echo implode(' · ',array_map(function($r)use($roleLabels){return $roleLabels[trim($r)]??trim($r);},explode(',',$user['role'])));?></div></div>
     <button class="btn btn-sm btn-g" onclick="doLogout()" title="Sair" style="margin-left:auto;padding:5px 8px">⏻</button>
   </div>
@@ -88,7 +95,7 @@ if (!$loggedIn || !$user) {
         <div style="position:relative;display:inline-flex">
           <button class="notif-btn" onclick="toggleNotifs()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="notif-count" id="notif-count" style="display:none">0</span></button>
           <div class="notif-panel" id="notif-panel">
-            <div class="np-h"><span>Notificações</span><button class="btn btn-sm btn-g" onclick="readAllNotifs()">Marcar lidas</button></div>
+            <div class="np-h"><span>Notificações</span><button class="notif-close" onclick="document.getElementById('notif-panel').classList.remove('show')" style="display:none;background:none;border:none;color:var(--t2);font-size:18px;cursor:pointer;padding:4px 8px;margin-left:auto;order:3">✕</button><button class="btn btn-sm btn-g" onclick="readAllNotifs()">Marcar lidas</button></div>
             <div id="notif-list"></div>
             <div id="notif-more" style="display:none;padding:10px;text-align:center"><button class="btn btn-g btn-sm btn-full" onclick="showPage('notificacoes')">Ver todas →</button></div>
           </div>
@@ -120,7 +127,6 @@ if (!$loggedIn || !$user) {
 <?php endif;?>
 
     <div class="page" id="page-docs"><div id="docs-content"></div></div>
-    <div class="page" id="page-pesquisas"><div id="pesquisas-content"></div></div>
 
 <?php if(userHasRole($user,['admin','presidencia','diretor'])):?>
     <div class="page" id="page-aprovacoes"><div id="approv-content"></div></div>
@@ -164,5 +170,58 @@ if (!$loggedIn || !$user) {
 
 <script>const ME=<?=json_encode(array('id'=>$user['id'],'name'=>$user['name'],'email'=>$user['email'],'role'=>$user['role'],'avatar_color'=>$user['avatar_color'],'avatar_file'=>isset($user['avatar_file'])?$user['avatar_file']:null))?>;</script>
 <script src="assets/js/app.js"></script>
+
+<script>
+(async function initPWA() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    console.log('[PWA] SW registrado:', reg.scope);
+    await navigator.serviceWorker.ready;
+    console.log('[PWA] SW pronto!');
+    navigator.serviceWorker.addEventListener('message', evt => {
+      if (evt.data?.type === 'NOTIFICATION_CLICK' && evt.data.url) {
+        const hash = evt.data.url.replace(/.*#/, '');
+        if (hash && typeof showPage === 'function') showPage(hash);
+      }
+    });
+    await new Promise(r => setTimeout(r, 500));
+    await initPush(reg);
+  } catch (e) { console.warn('[PWA] Erro:', e); }
+})();
+async function initPush(reg) {
+  if (!('PushManager' in window)) { console.log('[Push] Nao suportado'); return; }
+  try {
+    const r = await fetch('api.php?action=push_public_key');
+    const cfg = await r.json();
+    console.log('[Push] Config:', cfg);
+    if (!cfg.enabled || !cfg.key) { console.log('[Push] Nao habilitado'); return; }
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { console.log('[Push] Permissao negada'); return; }
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.key) });
+      console.log('[Push] Inscrito!');
+    } else { console.log('[Push] Ja inscrito'); }
+    const key = sub.getKey('p256dh'), auth = sub.getKey('auth');
+    await fetch('api.php?action=push_subscribe', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        endpoint: sub.endpoint,
+        p256dh: btoa(String.fromCharCode(...new Uint8Array(key))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
+        auth: btoa(String.fromCharCode(...new Uint8Array(auth))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')
+      })
+    });
+    console.log('[Push] Subscription enviada');
+  } catch (e) { console.warn('[Push] Erro:', e); }
+}
+function urlBase64ToUint8Array(b) {
+  const p = '='.repeat((4 - b.length % 4) % 4);
+  const raw = atob((b + p).replace(/-/g,'+').replace(/_/g,'/'));
+  const a = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; ++i) a[i] = raw.charCodeAt(i);
+  return a;
+}
+</script>
 </body>
 </html>
