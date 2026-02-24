@@ -48,11 +48,11 @@ body{
 @keyframes gridMove{to{background-position:60px 60px}}
 
 .bg-orb{
-    position:fixed;border-radius:50%;filter:blur(80px);opacity:.15;z-index:0;
+    position:fixed;border-radius:50%;filter:blur(100px);opacity:.08;z-index:0;
     animation:orbFloat 12s ease-in-out infinite alternate;
 }
 .bg-orb.o1{width:500px;height:500px;background:var(--acc);top:-10%;left:-10%;animation-delay:0s}
-.bg-orb.o2{width:400px;height:400px;background:#8b5cf6;bottom:-10%;right:-10%;animation-delay:-4s}
+.bg-orb.o2{width:400px;height:400px;background:#8b5cf6;bottom:-20%;right:-15%;animation-delay:-4s}
 .bg-orb.o3{width:300px;height:300px;background:var(--suc);top:50%;left:60%;animation-delay:-8s}
 @keyframes orbFloat{
     0%{transform:translate(0,0) scale(1)}
@@ -174,6 +174,7 @@ body{
 .btn-login:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(59,130,246,.4)}
 .btn-login:active{transform:translateY(0)}
 .btn-login:disabled{opacity:.7;cursor:wait}
+.btn-login{overflow:hidden!important}
 .btn-login .shine{
     position:absolute;top:0;left:-100%;width:100%;height:100%;
     background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);
