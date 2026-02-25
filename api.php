@@ -207,7 +207,7 @@ if($act==='demandas'){
         if(!empty($_GET['priority'])){ $w[]='d.priority=?'; $p[]=$_GET['priority']; }
         if(!empty($_GET['system_id'])){ $w[]='d.system_id=?'; $p[]=$_GET['system_id']; }
         if(!empty($_GET['search'])){ $w[]='(d.title LIKE ? OR d.description LIKE ?)'; $p[]='%'.$_GET['search'].'%'; $p[]='%'.$_GET['search'].'%'; }
-        if(!empty($_GET['dev_id'])){ $w[]='d.id IN (SELECT demand_id FROM devs_demandas WHERE user_id=?)'; $p[]=$_GET['dev_id']; }
+        if(!empty($_GET['dev_id'])){ $w[]="(d.id IN (SELECT demand_id FROM devs_demandas WHERE user_id=?) OR (d.status='Aberta' AND d.id NOT IN (SELECT demand_id FROM devs_demandas)))"; $p[]=$_GET['dev_id']; }
         if(!empty($_GET['sprint_id'])){ $w[]='d.sprint_id=?'; $p[]=$_GET['sprint_id']; }
         if(isset($_GET['no_sprint'])&&$_GET['no_sprint']=='1'){ $w[]='d.sprint_id IS NULL'; }
         if(!empty($_GET['presidency_status'])){ $w[]='d.needs_presidency_approval=1 AND d.presidency_status=?'; $p[]=$_GET['presidency_status']; }
@@ -474,12 +474,48 @@ if($act==='demand_delegate'&&isset($_GET['id'])){
         $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,?,?)")->execute([$id,$UID,'Adicionou dev',$tgtName]);
     }
     notify($targetId,'demand_assigned',"{$ME['name']} delegou: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
+    // Notificar admins sobre delegação
+    $admsD=$db->prepare("SELECT id FROM usuarios WHERE FIND_IN_SET('admin',role) AND active=1 AND id!=?"); $admsD->execute([$UID]);
+    foreach($admsD->fetchAll() as $ad) notify($ad['id'],'demand_assigned',"{$ME['name']} adicionou {$tgtName} em: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
     sendPushToUser($db, $targetId, ['title'=>'📋 Demanda Delegada','message'=>"{$ME['name']} delegou: {$demRow['title']}",'url'=>'/index.php#demandas']);
     logActivity($UID,"Delegou {$demRow['title']} → {$tgtName}",'demand',$id);
     jsonR(['success'=>true]);
 }
 
 // Aprovação presidência
+
+// Remover dev de uma demanda
+if($act==='demand_remove_dev'&&isset($_GET['id'])){
+    $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
+    $targetId=(int)($d['user_id']??0);
+    if(!$targetId) jsonR(['error'=>'ID inválido'],400);
+    // Get demand info
+    $dem=$db->prepare("SELECT title,status FROM demandas WHERE id=?"); $dem->execute([$id]); $demRow=$dem->fetch();
+    if(!$demRow) jsonR(['error'=>'Demanda não encontrada'],404);
+    // Check if target is actually assigned
+    $chk=$db->prepare("SELECT 1 FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chk->execute([$id,$targetId]);
+    if(!$chk->fetch()) jsonR(['error'=>'Dev não está nesta demanda'],400);
+    // Count current devs
+    $cnt=$db->prepare("SELECT COUNT(*) as c FROM devs_demandas WHERE demand_id=?"); $cnt->execute([$id]);
+    $devCount=$cnt->fetch()['c'];
+    // Allow removal (even last dev - demand goes back to "Aberta")
+    // Get target name
+    $tgt=$db->prepare("SELECT name FROM usuarios WHERE id=?"); $tgt->execute([$targetId]); $tgtName=$tgt->fetch()['name']??'Dev';
+    // Remove
+    $db->prepare("DELETE FROM devs_demandas WHERE demand_id=? AND user_id=?")->execute([$id,$targetId]);
+    // Log history
+    $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,?,?,?)")->execute([$id,$UID,'Removeu dev',$tgtName,'']);
+    // If no more devs, set status back to Aberta
+    $cnt2=$db->prepare("SELECT COUNT(*) as c FROM devs_demandas WHERE demand_id=?"); $cnt2->execute([$id]);
+    if($cnt2->fetch()['c']==0 && !in_array($demRow['status'],['Concluída','Cancelada'])){
+        $db->prepare("UPDATE demandas SET status='Aberta' WHERE id=?")->execute([$id]);
+        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,?,?,?)")->execute([$id,$UID,'Status alterado',$demRow['status'],'Aberta']);
+    }
+    // Notify removed dev
+    notify($targetId,'demand_status',"{$ME['name']} removeu você de: {$demRow['title']}",'',"demand:{$id}",'demand',$id);
+    logActivity($UID,"Removeu {$tgtName} de: {$demRow['title']}",'demand',$id);
+    jsonR(['success'=>true]);
+}
 if($act==='demand_approve'&&isset($_GET['id'])){
     if(!$IS_ELEVATED) jsonR(['error'=>'Sem permissão'],403);
     $id=(int)$_GET['id']; $d=json_decode(file_get_contents('php://input'),true);
@@ -584,7 +620,7 @@ if($act==='demand_upload'&&isset($_GET['id'])){
 // ===== DEPARTMENTS ===== (FIX: movido para nível top-level)
 if($act==='departments'){
     if($method==='GET'){
-        $s=$db->query("SELECT d.*, (SELECT COUNT(*) FROM users u WHERE u.department_id=d.id) as user_count FROM departments d ORDER BY d.name");
+        $s=$db->query("SELECT d.*, (SELECT COUNT(*) FROM usuarios u WHERE u.department_id=d.id) as user_count FROM departments d ORDER BY d.name");
         jsonR($s->fetchAll());
     }
     if($method==='POST'){
@@ -802,8 +838,8 @@ if($act==='reports'&&($_GET['type']??'')==='by_department'){
         AVG(CASE WHEN d.completed_at IS NOT NULL THEN DATEDIFF(d.completed_at,d.created_at) END) as avg_days,
         COUNT(DISTINCT u.id) as total_users
         FROM departments dep
-        LEFT JOIN users u ON u.department_id=dep.id
-        LEFT JOIN demands d ON d.requested_by=u.id AND d.created_at BETWEEN ? AND ?
+        LEFT JOIN usuarios u ON u.department_id=dep.id
+        LEFT JOIN demandas d ON d.requested_by=u.id AND d.created_at BETWEEN ? AND ?
         GROUP BY dep.id,dep.name ORDER BY total_demands DESC";
     $s=$db->prepare($sql);$s->execute([$df,$dt]);
     jsonR($s->fetchAll());
@@ -1155,7 +1191,7 @@ if($act==='reunioes'){
         jsonR($s->fetchAll());
     }
     if($method==='POST'){
-        if(!$IS_ADMIN) jsonR(['error'=>'Apenas administradores podem agendar reuniões'],403);
+        if(!$IS_ADMIN&&!$IS_DEV&&!$IS_DIR) jsonR(['error'=>'Apenas administradores podem agendar reuniões'],403);
         $d=json_decode(file_get_contents('php://input'),true);
         $db->prepare("INSERT INTO reunioes (title,description,meeting_date,meeting_time,duration_minutes,location,is_online,online_link,created_by) VALUES (?,?,?,?,?,?,?,?,?)")
             ->execute([trim($d['title']??''),$d['description']??'',$d['meeting_date'],$d['meeting_time']??'10:00',$d['duration_minutes']??60,$d['location']??'Sala TI',$d['is_online']?1:0,$d['online_link']??'',$UID]);
@@ -1174,7 +1210,7 @@ if($act==='reunioes'){
 if($act==='meeting'&&isset($_GET['id'])){
     $id=(int)$_GET['id'];
     if($method==='PUT'){
-        if(!$IS_ADMIN) jsonR(['error'=>'Apenas administradores podem editar reuniões'],403);
+        if(!$IS_ADMIN&&!$IS_DEV&&!$IS_DIR) jsonR(['error'=>'Apenas administradores podem editar reuniões'],403);
         $d=json_decode(file_get_contents('php://input'),true);
         $oldParts=$db->prepare("SELECT user_id FROM participantes_reunioes WHERE meeting_id=?"); $oldParts->execute([$id]); $oldIds=array_column($oldParts->fetchAll(),'user_id');
         $db->prepare("UPDATE reunioes SET title=?,description=?,meeting_date=?,meeting_time=?,duration_minutes=?,location=?,is_online=?,online_link=?,status=? WHERE id=?")
@@ -1199,7 +1235,7 @@ if($act==='meeting'&&isset($_GET['id'])){
         logActivity($UID,"Editou reunião #{$id}",'meeting',$id);
         jsonR(['success'=>true]);
     }
-    if($method==='DELETE'){ if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403); $db->prepare("DELETE FROM reunioes WHERE id=?")->execute([$id]); logActivity($UID,"Excluiu reunião #{$id}",'meeting',$id); jsonR(['success'=>true]); }
+    if($method==='DELETE'){ if(!$IS_ADMIN&&!$IS_DEV&&!$IS_DIR) jsonR(['error'=>'Sem permissão'],403); $db->prepare("DELETE FROM reunioes WHERE id=?")->execute([$id]); logActivity($UID,"Excluiu reunião #{$id}",'meeting',$id); jsonR(['success'=>true]); }
 }
 
 // ===== SOLICITATIONS =====
