@@ -133,7 +133,7 @@ function sendPushToUser(PDO $db, int $userId, array $notifData): void {
         $payload = json_encode([
             'title'  => $notifData['title'] ?? 'GestãoDev ASSEGO',
             'body'   => $notifData['message'] ?? '',
-            'icon'   => '/layane/gestaodev/assets/img/favicon.png',
+            'icon'   => rtrim(dirname($_SERVER['SCRIPT_NAME']),'/').'/assets/img/favicon.png',
             'tag'    => 'gestaodev-' . ($notifData['id'] ?? time()),
             'url'    => $notifData['url'] ?? '/index.php',
             'id'     => $notifData['id'] ?? null

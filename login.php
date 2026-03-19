@@ -19,7 +19,7 @@ try {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Login - Gestão Dev ASSEGO</title>
-<link rel="icon" type="image/png" href="assets/img/logo.png">
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -272,20 +272,14 @@ body{
         </button>
 
         <div class="login-footer">
-            <p>Acesso restrito ao setor de TI</p>
-            <div class="hint">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                Senha padrão: Assego@123
+            <p>Acesso restrito ao setor de desenvolvimento.</p>
+          </div>
             </div>
         </div>
     </div>
 
-    <div class="status-bar">
-        <div class="status-dot"></div>
-        <span>Sistema Online</span>
-    </div>
+</div> 
 </div>
-
 <script>
 var passInput = document.getElementById('login-pass');
 var emailInput = document.getElementById('login-email');

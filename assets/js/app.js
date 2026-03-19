@@ -1,3 +1,12 @@
+
+function setCpx(el){
+  const val=el.dataset.val, idx=parseInt(el.dataset.idx);
+  document.getElementById('d-complexity').value=val;
+  document.querySelectorAll('.cpx-dot').forEach(d=>{d.classList.remove('active')});
+  el.classList.add('active');
+  const fill=document.getElementById('cpx-fill');
+  if(fill) fill.style.width=(idx/3*100)+'%';
+}
 // Inject permissions panel styles
 (function(){var s=document.createElement('style');s.textContent='.perm-wrap{margin-top:12px;animation:fadeIn .2s ease}.perm-panel{background:var(--bg2);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.25)}.perm-ph{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 18px;background:var(--bg3);border-bottom:1px solid var(--brd)}.perm-ph-title{font-weight:700;font-size:14px;color:var(--t1)}.perm-rb{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px}.prb-admin{background:#ef444422;color:#ef4444;border:1px solid #ef444440}.prb-dev{background:#3b82f622;color:#3b82f6;border:1px solid #3b82f640}.prb-presidencia{background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b40}.prb-diretor{background:#8b5cf622;color:#8b5cf6;border:1px solid #8b5cf640}.perm-grp{padding:12px 18px;border-bottom:1px solid var(--brd)}.perm-grp-t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3);margin-bottom:8px}.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}.perm-it{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid var(--brd);transition:all .15s;user-select:none}.perm-it:hover{border-color:var(--acc)}.perm-it.on{background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.35)}.perm-it.off{opacity:.55}.perm-tog{width:28px;height:16px;border-radius:8px;flex-shrink:0;position:relative;transition:background .2s}.perm-it.on .perm-tog{background:var(--acc)}.perm-it.off .perm-tog{background:var(--bg4)}.perm-tog::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}.perm-it.on .perm-tog::after{transform:translateX(12px)}.perm-lbl{font-size:12px;font-weight:600;color:var(--t1)}.perm-desc{font-size:10px;color:var(--t3);margin-top:1px}.perm-foot{display:flex;gap:8px;padding:12px 18px;background:var(--bg3);border-top:1px solid var(--brd)}.perm-open{border-color:var(--acc)!important}@media(max-width:600px){.perm-grid{grid-template-columns:1fr 1fr}}';document.head.appendChild(s)})();
 
@@ -83,6 +92,7 @@ const IC_CROWN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stro
 const TECH_LIST=['PHP','MySQL','JavaScript','jQuery','Bootstrap','CSS','HTML','React','Node.js','Vue.js','Angular','TypeScript','Python','Laravel','Docker','API REST','JSON','Git','Apache','Nginx','Redis','MongoDB','PostgreSQL','Tailwind','Sass','WordPress','Low Code','Photoprisma','QR Code','GPS','Cron','Vercel','Firebase','AWS','Linux','Flutter','Kotlin','Swift','C#','.NET','Java','Go','Rust'];
 const ROLE_LABELS={admin:'Administrador',dev:'Desenvolvedor',presidencia:'Presidência',diretor:'Diretor',usuario:'Usuário'};
 let calMonth=new Date().toISOString().slice(0,7);
+let calMineState=(typeof IS_DEV!=='undefined'&&IS_DEV&&!IS_ADMIN&&!IS_DIR)?true:false;
 let chartInstances={};
 
 const DOCS_ACTIONS=new Set(['docs','doc','doc_upload','doc_file_delete','doc_file_download']);
@@ -132,11 +142,13 @@ document.addEventListener('click',e=>{if(!e.target.closest('.notif-btn')&&!e.tar
 
 // ===== BASE DATA =====
 async function loadBaseData(){const[d,s,u,sp]=await Promise.all([api('dev_list'),api('systems'),api('all_users_list'),api('sprints')]);allDevs=d||[];allSystems=s||[];allUsers=u||[];allSprints=sp||[];
-['f-system','k-system'].forEach(id=>{const el=document.getElementById(id);if(el&&el.options.length<=1)allSystems.forEach(s=>{el.appendChild(new Option(s.name,s.id))})});
+['f-system','k-system'].forEach(id=>{const el=document.getElementById(id);if(el&&el.options.length<=1)allSystems.forEach(s=>{el.appendChild(new Option(s.name,s.id))})});['f-dev','k-dev'].forEach(id=>{const el=document.getElementById(id);if(el&&el.options.length<=1)allDevs.filter(d=>d.id!=ME.id).forEach(d=>{el.appendChild(new Option(d.name,d.id))})})
 ['f-sprint','k-sprint'].forEach(id=>{const el=document.getElementById(id);if(el&&el.options.length<=1){allSprints.filter(s=>s.status!=='Cancelada').forEach(s=>{el.appendChild(new Option(`${s.name}${s.status==='Ativa'?' ●':''}`,s.id))})}})}
 
 // ===== DASHBOARD =====
-async function loadDashboard(){const proms=[api('stats'),api('demands'),api('activities')];if(IS_DEV)proms.push(api('demands',{params:{dev_id:ME.id}}));const[stats,demands,acts,myDemands]=await Promise.all(proms);
+async function loadDashboard(){const dashMineEl=document.getElementById('dash-mine');const dashMine=dashMineEl?dashMineEl.checked:(IS_DEV&&!IS_ADMIN&&!IS_DIR);const devFilter=dashMine?{dev_id:ME.id}:{};const proms=[api('stats',{params:devFilter}),api('demands',{params:devFilter}),api('activities')];if(IS_DEV)proms.push(api('demands',{params:{dev_id:ME.id}}));const[stats,demands,acts,myDemands]=await Promise.all(proms);
+const toggleHtml=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;justify-content:flex-end"><label class="filter-toggle" title="Mostrar apenas suas demandas"><input type="checkbox" id="dash-mine" onchange="loadDashboard()" ${dashMine?'checked':''}><span class="ft-track"><span class="ft-knob"></span></span><span class="ft-text">Minhas</span></label></div>`;
+document.getElementById('dash-toggle').innerHTML=toggleHtml;
 document.getElementById('dash-stats').innerHTML=`<div class="sc blue"><div class="sc-l">Total</div><div class="sc-v">${stats.total||0}</div></div><div class="sc purple"><div class="sc-l">Abertas</div><div class="sc-v">${stats.abertas||0}</div></div><div class="sc gold"><div class="sc-l">Aguardando Aceite</div><div class="sc-v">${stats.aguardando||0}</div></div><div class="sc yellow"><div class="sc-l">Em Andamento</div><div class="sc-v">${(+stats.andamento||0)+(+stats.revisao||0)}</div></div><div class="sc green"><div class="sc-l">Concluídas</div><div class="sc-v">${stats.concluidas||0}</div></div><div class="sc red"><div class="sc-l">Urgentes</div><div class="sc-v">${stats.urgentes||0}</div></div>`;
 // My demands section for devs
 const myEl=document.getElementById('dash-mydemands');
@@ -145,32 +157,32 @@ if(IS_DEV&&myDemands){
     const pending=(myDemands||[]).filter(d=>d.devs?.some(dv=>dv.user_id==ME.id&&dv.acceptance==='Pendente'));
     myEl.innerHTML=`<div class="tbl-c" style="margin-bottom:14px;border:1px solid var(--acc);border-radius:var(--r)"><div class="tbl-bar" style="background:var(--accg)"><h3 style="display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Minhas Demandas${pending.length?` <span class="badge" style="background:var(--err);color:#fff;font-size:10px">${pending.length} pendente${pending.length>1?'s':''}</span>`:''}</h3><span style="font-size:11px;color:var(--t3)">${active.length} ativa${active.length!==1?'s':''}</span></div>${active.length?`<div style="overflow-x:auto"><table><thead><tr><th>Demanda</th><th>Prioridade</th><th>Status</th><th>Aceite</th><th>Prazo</th></tr></thead><tbody>${active.map(d=>{const myAcc=(d.devs||[]).find(x=>x.user_id==ME.id);const acc=myAcc?.acceptance||'—';const isPend=acc==='Pendente';return`<tr onclick="openDetail(${d.id})" style="${isPend?'background:var(--accg);':''}"><td style="font-weight:600">${isPend?IC.zap+' ':''}${esc(d.title)}</td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td><span class="badge accept-${acc.toLowerCase()}">${acc}</span></td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${fmtDate(d.deadline)}</td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty" style="padding:20px"><p>Nenhuma demanda ativa atribuída a você</p></div>`}</div>`;
 } else { myEl.innerHTML=''; }
-const active=(demands||[]).filter(d=>!['Concluída','Cancelada'].includes(d.status)).length;document.getElementById('b-kan').textContent=active;const bAp=document.getElementById('b-ap');if(bAp)bAp.textContent=stats.pend_pres||0;
+const kanCount=(demands||[]).filter(d=>d.status==='Aberta'||(d.status==='Aguardando Aceite'&&(d.devs||[]).some(x=>x.user_id==ME.id))).length;document.getElementById('b-kan').textContent=kanCount;const bAp=document.getElementById('b-ap');if(bAp){const _apC=stats.pend_pres||0;bAp.textContent=_apC;bAp.style.display=_apC>0?'':'none';}
 // Recent demands: devs see only their own + open unassigned; admins see all
 const recentList=IS_DEV?(demands||[]).filter(d=>(d.devs||[]).some(dv=>dv.user_id==ME.id)||((d.devs||[]).length===0&&!['Concluída','Cancelada'].includes(d.status))):(demands||[]);
 document.getElementById('dash-recent').innerHTML=recentList.slice(0,8).map(d=>`<tr onclick="openDetail(${d.id})"><td style="font-weight:600">${esc(d.title)}</td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td>${devsHtml(d.devs)}</td></tr>`).join('')||'<tr><td colspan="3"><div class="empty"><p>Nenhuma demanda</p></div></td></tr>';
 document.getElementById('dash-activity').innerHTML=(acts||[]).slice(0,15).map(a=>`<div style="padding:7px 0;border-bottom:1px solid var(--bdr);font-size:12px"><span style="color:var(--acc);font-weight:600">${esc(a.user_name||'Sistema')}</span> <span style="color:var(--t2)">${esc(a.action)}</span> <span style="color:var(--t3);font-size:10px;font-family:'JetBrains Mono',monospace;margin-left:6px">${timeAgo(a.created_at)}</span></div>`).join('')||'<div class="empty"><p>Sem atividade</p></div>'}
 
 // ===== KANBAN =====
-async function loadKanban(){const p={};const mine=document.getElementById('k-mine')?.checked;if(mine)p.dev_id=ME.id;const kp=document.getElementById('k-priority')?.value;if(kp)p.priority=kp;const ks=document.getElementById('k-system')?.value;if(ks)p.system_id=ks;const ksp=document.getElementById('k-sprint')?.value;if(ksp)p.sprint_id=ksp;const demands=await api('demands',{params:p})||[];document.getElementById('kanban-board').innerHTML=STATUS_LIST.map(st=>{const items=demands.filter(d=>d.status===st);return`<div class="k-col"><div class="k-head"><span class="k-title"><span class="k-dot" style="background:${STATUS_COLORS[st]}"></span>${st}</span><span class="k-cnt">${items.length}</span></div><div class="k-body">${items.map(d=>`<div class="k-card" onclick="openDetail(${d.id})" ${d.needs_presidency_approval==1&&d.presidency_status==='Rejeitada'?'style="border-left:3px solid var(--err);opacity:.75"':''}><div class="k-card-t">${d.needs_presidency_approval==1&&d.presidency_status==='Rejeitada'?IC.block+' ':''}${esc(d.title)}</div><div class="k-card-m"><span class="tag">${esc(d.system_name||'—')}</span><span class="badge ${pClass(d.priority)}">${d.priority}</span></div><div class="k-card-m" style="margin-top:5px">${devsHtml(d.devs)}${d.needs_presidency_approval==1?`<span class="badge ${presClass(d.presidency_status)}">${IC_CROWN}</span>`:''}</div></div>`).join('')||'<div class="empty" style="padding:12px"><p style="font-size:10px">Vazio</p></div>'}</div></div>`}).join('')}
+async function loadKanban(){const p={};const kd=document.getElementById('k-dev')?.value;const kMineEl=document.getElementById('k-mine');if(kd){p.dev_id=kd;if(kMineEl)kMineEl.checked=false}else if(kMineEl?.checked)p.dev_id=ME.id;const kp=document.getElementById('k-priority')?.value;if(kp)p.priority=kp;const ks=document.getElementById('k-system')?.value;if(ks)p.system_id=ks;const ksp=document.getElementById('k-sprint')?.value;if(ksp)p.sprint_id=ksp;const demands=await api('demands',{params:p})||[];document.getElementById('kanban-board').innerHTML=STATUS_LIST.map(st=>{const items=demands.filter(d=>d.status===st);return`<div class="k-col"><div class="k-head"><span class="k-title"><span class="k-dot" style="background:${STATUS_COLORS[st]}"></span>${st}</span><span class="k-cnt">${items.length}</span></div><div class="k-body">${items.map(d=>`<div class="k-card" onclick="openDetail(${d.id})" ${d.needs_presidency_approval==1&&d.presidency_status==='Rejeitada'?'style="border-left:3px solid var(--err);opacity:.75"':''}><div class="k-card-t">${d.needs_presidency_approval==1&&d.presidency_status==='Rejeitada'?IC.block+' ':''}${esc(d.title)}</div><div class="k-card-m"><span class="tag">${esc(d.system_name||'—')}</span><span class="badge ${pClass(d.priority)}">${d.priority}</span></div><div class="k-card-m" style="margin-top:5px">${devsHtml(d.devs)}${d.needs_presidency_approval==1?`<span class="badge ${presClass(d.presidency_status)}">${IC_CROWN}</span>`:''}</div></div>`).join('')||'<div class="empty" style="padding:12px"><p style="font-size:10px">Vazio</p></div>'}</div></div>`}).join('')}
 
 // ===== DEMANDS =====
-async function loadDemands(){const p={};const s=document.getElementById('d-search')?.value;if(s)p.search=s;const fs=document.getElementById('f-status')?.value;if(fs)p.status=fs;const fp=document.getElementById('f-priority')?.value;if(fp)p.priority=fp;const fsy=document.getElementById('f-system')?.value;if(fsy)p.system_id=fsy;const fsp=document.getElementById('f-sprint')?.value;if(fsp)p.sprint_id=fsp;const mine=document.getElementById('f-mine')?.checked;if(mine)p.dev_id=ME.id;
-const demands=await api('demands',{params:p})||[];document.getElementById('dem-body').innerHTML=demands.length?demands.map(d=>`<tr onclick="openDetail(${d.id})"><td style="font-family:'JetBrains Mono',monospace;color:var(--t3);font-size:11px">#${d.id}</td><td style="font-weight:600">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td>${devsHtml(d.devs)}</td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td>${acceptBadge(d.devs)}</td><td>${d.needs_presidency_approval==1?`<span class="badge ${presClass(d.presidency_status)}">${IC_CROWN} ${d.presidency_status}</span>`:'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${fmtDate(d.deadline)}</td></tr>`).join(''):'<tr><td colspan="9"><div class="empty"><div class="ei">—</div><p>Nenhuma demanda</p></div></td></tr>'}
+async function loadDemands(){const p={};const s=document.getElementById('d-search')?.value;if(s)p.search=s;const fs=document.getElementById('f-status')?.value;if(fs)p.status=fs;const fp=document.getElementById('f-priority')?.value;if(fp)p.priority=fp;const ft=document.getElementById('f-type')?.value;if(ft)p.type=ft;const fsy=document.getElementById('f-system')?.value;if(fsy)p.system_id=fsy;const fsp=document.getElementById('f-sprint')?.value;if(fsp)p.sprint_id=fsp;const fdev=document.getElementById('f-dev')?.value;const fMineEl=document.getElementById('f-mine');if(fdev){p.dev_id=fdev;if(fMineEl)fMineEl.checked=false}else if(fMineEl?.checked)p.dev_id=ME.id;
+const demands=await api('demands',{params:p})||[];document.getElementById('dem-body').innerHTML=demands.length?demands.map(d=>`<tr onclick="openDetail(${d.id})"><td style="font-family:'JetBrains Mono',monospace;color:var(--t3);font-size:11px">#${d.id}</td><td style="font-weight:600">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge" style="font-size:9px">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td>${devsHtml(d.devs)}</td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td>${acceptBadge(d.devs)}</td><td>${d.needs_presidency_approval==1?`<span class="badge ${presClass(d.presidency_status)}">${IC_CROWN} ${d.presidency_status}</span>`:'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${fmtDate(d.deadline)}</td></tr>`).join(''):'<tr><td colspan="10"><div class="empty"><div class="ei">—</div><p>Nenhuma demanda</p></div></td></tr>'}
 
 function openNewDemand(){document.getElementById('m-demand-t').textContent='Nova Demanda';document.getElementById('d-edit-id').value='';document.getElementById('d-title').value='';document.getElementById('d-desc').value='';document.getElementById('d-priority').value='Média';document.getElementById('d-status').value='Aberta';document.getElementById('d-start').value=new Date().toISOString().split('T')[0];document.getElementById('d-deadline').value='';document.getElementById('d-requester').value='';document.getElementById('d-presidency').checked=false;pendingFiles=[];document.getElementById('upload-preview').innerHTML='';
 document.getElementById('d-system').innerHTML='<option value="">Selecione...</option>'+allSystems.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');document.getElementById('d-sprint').innerHTML='<option value="">Sem sprint</option>'+allSprints.filter(s=>s.status!=='Cancelada'&&s.status!=='Concluída').map(s=>`<option value="${s.id}">${esc(s.name)}${s.status==='Ativa'?' ●':''}</option>`).join('');devCheckboxes('d-devs');openM('m-demand')}
 async function openEdit(id){const d=await api('demand',{params:{id}});if(!d||d.error)return alert(d?.error||'Erro');document.getElementById('m-demand-t').textContent='Editar #'+id;document.getElementById('d-edit-id').value=id;document.getElementById('d-title').value=d.title;document.getElementById('d-desc').value=d.description||'';document.getElementById('d-priority').value=d.priority;document.getElementById('d-status').value=d.status;document.getElementById('d-start').value=d.start_date||'';document.getElementById('d-deadline').value=d.deadline||'';document.getElementById('d-requester').value=d.requester||'';document.getElementById('d-presidency').checked=d.needs_presidency_approval==1;pendingFiles=[];document.getElementById('upload-preview').innerHTML='';
 document.getElementById('d-system').innerHTML='<option value="">Selecione...</option>'+allSystems.map(s=>`<option value="${s.id}" ${s.id==d.system_id?'selected':''}>${esc(s.name)}</option>`).join('');document.getElementById('d-sprint').innerHTML='<option value="">Sem sprint</option>'+allSprints.filter(s=>s.status!=='Cancelada'&&s.status!=='Concluída').map(s=>`<option value="${s.id}" ${s.id==d.sprint_id?'selected':''}>${esc(s.name)}${s.status==='Ativa'?' ●':''}</option>`).join('');const selDevs=(d.devs||[]).map(x=>x.user_id);devCheckboxes('d-devs',selDevs);openM('m-demand')}
 let _saving=false;
-async function saveDemand(){if(_saving)return;_saving=true;try{const editId=document.getElementById('d-edit-id').value;const body={title:document.getElementById('d-title').value.trim(),description:document.getElementById('d-desc').value.trim(),system_id:document.getElementById('d-system').value||null,priority:document.getElementById('d-priority').value,status:document.getElementById('d-status').value,start_date:document.getElementById('d-start').value||null,deadline:document.getElementById('d-deadline').value||null,requester:document.getElementById('d-requester').value.trim(),needs_presidency_approval:document.getElementById('d-presidency').checked,sprint_id:document.getElementById('d-sprint').value||null,dev_ids:getCheckedIds('d-devs')};
+async function saveDemand(){if(_saving)return;_saving=true;try{const editId=document.getElementById('d-edit-id').value;const body={title:document.getElementById('d-title').value.trim(),description:document.getElementById('d-desc').value.trim(),system_id:document.getElementById('d-system').value||null,priority:document.getElementById('d-priority').value,status:document.getElementById('d-status').value,start_date:document.getElementById('d-start').value||null,deadline:document.getElementById('d-deadline').value||null,requester:document.getElementById('d-requester').value.trim(),needs_presidency_approval:document.getElementById('d-presidency').checked,sprint_id:document.getElementById('d-sprint').value||null,dev_ids:getCheckedIds('d-devs'),complexity:document.getElementById('d-complexity').value,type:document.getElementById('d-type').value};
 if(!body.title){_saving=false;return alert('Título obrigatório')}let r;if(editId)r=await api('demand',{method:'PUT',params:{id:editId},body});else r=await api('demands',{method:'POST',body});if(!r?.success){_saving=false;return alert(r?.error||'Erro')}const did=editId||r.id;
 // If creating from a solicitation, mark it as approved
 const solId=document.getElementById('d-edit-id').dataset.solicitationId;
 if(solId&&!editId){const solNotes=document.getElementById('d-edit-id').dataset.solNotes||'';await api('solicitation_review',{method:'POST',params:{id:solId},body:{status:'Aprovada',review_notes:solNotes,demand_id:did}});delete document.getElementById('d-edit-id').dataset.solicitationId;delete document.getElementById('d-edit-id').dataset.solNotes}
 // If editing a rejected demand with presidency approval, resubmit
 if(editId&&body.needs_presidency_approval){await api('demand_resubmit',{method:'POST',params:{id:editId}})}
-for(const f of pendingFiles){const fd=new FormData();fd.append('image',f);await api('demand_upload',{params:{id:did},formData:fd})}pendingFiles=[];closeM('m-demand');loadPage(getCurrentPage())}finally{_saving=false}}
+let _upOk=0,_upFail=[];for(const f of pendingFiles){if(f.size===0){_upFail.push(f.name);continue}try{const fd=new FormData();fd.append('image',f);const r=await api('demand_upload',{params:{id:did},formData:fd});if(r&&r.error){_upFail.push(f.name)}else{_upOk++}}catch(e){_upFail.push(f.name)}}pendingFiles=[];closeM('m-demand');if(_upFail.length){showToast('⚠️ Falha ao enviar '+_upFail.length+' arquivo(s): '+_upFail.join(', '),5000)}if(_upOk>0){showToast('✅ Demanda salva com '+_upOk+' arquivo(s)!')}else{showToast('✅ Demanda salva!')}loadPage(getCurrentPage())}finally{_saving=false}}
 async function deleteDemand(id){if(!confirm('Excluir #'+id+'?'))return;await api('demand',{method:'DELETE',params:{id}});loadPage(getCurrentPage())}
 
 // ===== DETAIL =====
@@ -181,29 +193,13 @@ async function openDetail(id){_openDemandId=id;const d=await api('demand',{param
 document.getElementById('det-title').textContent=d.title;
 
 const footer=document.getElementById('det-footer');
-let footerHtml='<button class="btn btn-g" onclick="closeM(\'m-detail\')">Fechar</button>';
-// Admin/Dir always get edit/delete
-if(IS_ADMIN||IS_DIR){
-    footerHtml+=` <button class="btn btn-p" onclick="closeM('m-detail');openEdit(${d.id})">${IC.edit} Editar</button>`;
-    if(IS_ADMIN) footerHtml+=` <button class="btn btn-d btn-sm" onclick="if(confirm('Excluir?')){closeM('m-detail');deleteDemand(${d.id})}">${IC.trash}</button>`;
-}
-// Dev (including admin+dev) gets assumir if applicable
-const presPendingFooter=d.needs_presidency_approval==1&&d.presidency_status==='Pendente';
-const blockedFooter=d.needs_presidency_approval==1&&d.presidency_status==='Rejeitada';
-if(meHas('dev')&&!presPendingFooter&&!blockedFooter){
-    const myAssign=(d.devs||[]).find(x=>x.user_id==ME.id);
-    if(myAssign&&myAssign.acceptance==='Pendente'){
-        footerHtml+=` <button class="btn btn-ok" onclick="claimDemand(${d.id})">${IC.check} Assumir Demanda</button><button class="btn btn-d" onclick="acceptDemand(${d.id},false)">Recusar</button>`;
-    } else if(!myAssign&&(d.devs||[]).length===0&&!['Concluída','Cancelada'].includes(d.status)){
-        footerHtml+=` <button class="btn btn-p" onclick="claimDemand(${d.id})">${IC.hand} Assumir Demanda</button>`;
-    }
-}
-footer.innerHTML=footerHtml;
+footer.innerHTML='<button class="btn btn-g" onclick="closeM(\'m-detail\')">Fechar</button>'+(IS_ADMIN?` <button class="btn btn-d btn-sm" onclick="if(confirm(\'Excluir demanda #${d.id}?\')){closeM(\'m-detail\');deleteDemand(${d.id})}">${IC.trash} Excluir</button>`:'');
 const imgBase=i=>'api.php?action=arquivo&f=';
-const imgs=(d.images||[]).map(i=>`<img src="${imgBase(i)}${i.filename}" onclick="event.stopPropagation();document.getElementById('img-full-src').src='${imgBase(i)}${i.filename}';document.getElementById('img-full').classList.add('show')">`).join('');
+const canDelImg=IS_ADMIN||IS_DIR||(d.devs||[]).some(x=>x.user_id==ME.id);const _imgExts=['png','jpg','jpeg','gif','webp','svg'];const _fSvg=function(ext){const c='currentColor';const s={pdf:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15v-2h2a1 1 0 1 1 0 2H9z"/></svg>',doc:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>',xls:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><rect x="8" y="13" width="8" height="4" rx="1"/></svg>',ppt:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="12" cy="15" r="2"/></svg>',zip:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><rect x="10" y="12" width="4" height="6" rx="1"/></svg>',txt:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>',mp4:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>',mp3:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',fallback:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'};const map={docx:'doc',xlsx:'xls',pptx:'ppt',md:'txt',csv:'xls',json:'txt',xml:'txt',html:'txt',css:'txt',js:'txt',php:'txt',py:'txt',sql:'txt',log:'txt',rar:'zip','7z':'zip',wav:'mp3',ogg:'mp3',mov:'mp4',avi:'mp4'};return s[ext]||s[map[ext]]||s.fallback};const imgs=(d.images||[]).map(i=>{const ext=(i.original_name||i.filename||'').split('.').pop().toLowerCase();const isImg=_imgExts.includes(ext);if(isImg)return`<div style="position:relative;display:inline-block">${canDelImg?`<button onclick="event.stopPropagation();deleteImg(${d.id},${i.id})" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.7);border:none;color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;line-height:1">&times;</button>`:''}<img src="${imgBase(i)}${i.filename}" onclick="event.stopPropagation();document.getElementById('img-full-src').src='${imgBase(i)}${i.filename}';document.getElementById('img-full').classList.add('show')"></div>`;return`<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg4);border:1px solid var(--bdr);border-radius:8px;transition:.15s" onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--bdr)'"><span style="display:flex;align-items:center">${_fSvg(ext)}</span><a href="${imgBase(i)}${i.filename}" target="_blank" onclick="event.stopPropagation()" style="font-size:12px;color:var(--t1);text-decoration:none;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.original_name||i.filename)}</a>${canDelImg?`<button onclick="event.stopPropagation();deleteImg(${d.id},${i.id})" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:14px;padding:0 4px;opacity:.6;flex-shrink:0" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">&times;</button>`:''}</div>`}).join('');
 const cmts=(d.comments||[]).map(c=>`<div class="comment${(c.user_id==ME.id||c.user_name===ME.name)?' mine':''}"><div class="ch"><span class="ca">${esc(c.user_name)}</span><span class="ct" title="${fmtDT(c.created_at)}">${timeAgo(c.created_at)}</span></div><div class="cx">${fmtMention(esc(c.text))}</div></div>`).join('');
 const hist=(d.history||[]).slice(0,15).map(h=>`<div style="padding:5px 0;border-bottom:1px solid var(--bdr);font-size:11px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="color:var(--acc);font-weight:600">${esc(h.user_name||'Sistema')}</span><span style="color:var(--t2)">${esc(h.action)}</span>${h.old_value?` <span class="badge" style="font-size:9px;padding:1px 6px;background:var(--errb);color:var(--err)">${esc(h.old_value)}</span> <span style="color:var(--t3)">→</span>`:''} ${h.new_value?`<span class="badge" style="font-size:9px;padding:1px 6px;background:var(--okb);color:var(--ok)">${esc(h.new_value)}</span>`:''} ${h.details?`<span style="font-size:10px;color:var(--t3);font-style:italic">"${esc(h.details)}"</span>`:''}<span style="color:var(--t3);font-family:'JetBrains Mono',monospace;margin-left:auto;font-size:9px;flex-shrink:0" title="${fmtDT(h.created_at)}">${timeAgo(h.created_at)}</span></div>`).join('');
-const devsDetail=(d.devs||[]).map(dv=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0"><div class="dev-tag">${av(dv.name,dv.avatar_color)} ${esc(dv.name)}</div><span class="badge accept-${dv.acceptance.toLowerCase()}">${dv.acceptance}</span>${dv.acceptance==='Recusada'&&dv.rejection_reason?`<span style="font-size:10px;color:var(--t3)">(${esc(dv.rejection_reason)})</span>`:''}<button onclick="removeDevFromDemand(${d.id},${dv.user_id},'${esc(dv.name)}')" title="Remover dev" style="margin-left:auto;background:none;border:1px solid var(--err);color:var(--err);width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;opacity:.6;transition:opacity .2s" onmouseover="this.style.opacity=1;this.style.background='var(--err)';this.style.color='#fff'" onmouseout="this.style.opacity=.6;this.style.background='none';this.style.color='var(--err)'">✕</button></div>`).join('');
+const _meAccepted=(d.devs||[]).some(x=>x.user_id==ME.id&&x.acceptance==='Aceita');
+const devsDetail=(d.devs||[]).map(dv=>{const canRemove=IS_ADMIN||(_meAccepted&&dv.user_id!=ME.id&&dv.acceptance==='Pendente');return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0"><div class="dev-tag">${av(dv.name,dv.avatar_color)} ${esc(dv.name)}</div><span class="badge accept-${dv.acceptance.toLowerCase()}">${dv.acceptance}</span>${dv.acceptance==='Recusada'&&dv.rejection_reason?`<span style="font-size:10px;color:var(--t3)">(${esc(dv.rejection_reason)})</span>`:''}${canRemove?`<button onclick="removeDevFromDemand(${d.id},${dv.user_id},'${esc(dv.name)}')" title="Remover dev" style="margin-left:auto;background:none;border:1px solid var(--err);color:var(--err);width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;opacity:.6;transition:opacity .2s" onmouseover="this.style.opacity=1;this.style.background='var(--err)';this.style.color='#fff'" onmouseout="this.style.opacity=.6;this.style.background='none';this.style.color='var(--err)'">✕</button>`:''}</div>`}).join('');
 
 // Workflow steps
 const stIdx=WF_STEPS.findIndex(s=>s.key===d.status);
@@ -266,25 +262,33 @@ if(blocked){
     const isAssigned=(d.devs||[]).find(x=>x.user_id==ME.id);
     // Admin/Dir actions
     if(IS_ADMIN||IS_DIR){
-        const flow={Aberta:['Em Andamento','Cancelada'],['Aguardando Aceite']:['Em Andamento','Cancelada'],['Em Andamento']:['Em Revisão','Cancelada']};
+        const flow={Aberta:['Cancelada'],['Aguardando Aceite']:['Cancelada'],['Em Andamento']:['Em Revisão','Cancelada']};
         const nextSteps=flow[d.status]||[];
         const labels={'Em Andamento':IC.play+' Iniciar Desenvolvimento','Em Revisão':IC.upload+' Enviar para Revisão','Cancelada':'Cancelar'};
-        nextSteps.forEach(s=>btns.push(`<button class="btn btn-sm ${s==='Cancelada'?'btn-d':'btn-p'}" onclick="changeStatus(${d.id},'${s}')">${labels[s]||s}</button>`));
+        nextSteps.forEach(s=>{if(s==='Em Revisão'){btns.push(`<button class="btn btn-sm btn-p" onclick="openReviewModal(${d.id})">${labels[s]||s}</button>`)}else{btns.push(`<button class="btn btn-sm ${s==='Cancelada'?'btn-d':'btn-p'}" onclick="changeStatus(${d.id},'${s}')">${labels[s]||s}</button>`)}});
     }
-    // Dev actions (for admin+dev or pure dev)
+    // Dev actions (unified)
     if(meHas('dev')){
-        if(isMyDev){
-            if(d.status==='Em Andamento'&&!btns.some(b=>b.includes('Revisão'))){
-                btns.push(`<button class="btn btn-sm btn-p" onclick="openReviewModal(${d.id})">${IC.upload} Enviar para Revisão</button>`);
-            }
-            if(!IS_ADMIN) btns.push(`<button class="btn btn-sm btn-g" onclick="requestCancel(${d.id})">${IC.block} Solicitar Cancelamento</button>`);
-        } else if(!isAssigned&&(d.devs||[]).length===0&&!['Concluída','Cancelada'].includes(d.status)){
-            btns.push(`<button class="btn btn-sm btn-p" onclick="claimDemand(${d.id})">${IC.hand} Assumir Demanda</button>`);
-        } else if(isAssigned&&isAssigned.acceptance==='Pendente'){
-            btns.push(`<button class="btn btn-sm btn-ok" onclick="claimDemand(${d.id})">${IC.check} Assumir Demanda</button>`);
+        const _myDev=(d.devs||[]).find(x=>x.user_id==ME.id);
+        const _myAccepted=_myDev&&_myDev.acceptance==='Aceita';
+        if(_myAccepted&&d.status==='Em Andamento'&&!btns.some(b=>b.includes('Revisão'))){
+            btns.push(`<button class="btn btn-sm btn-p" onclick="openReviewModal(${d.id})">${IC.upload} Enviar para Revisão</button>`);
+        }
+        if(_myAccepted&&!IS_ADMIN){
+            btns.push(`<button class="btn btn-sm btn-g" onclick="requestCancel(${d.id})">${IC.block} Solicitar Cancelamento</button>`);
         }
     }
-    if(btns.length) statusHtml=`<div style="display:flex;gap:6px;flex-wrap:wrap">${btns.join('')}</div>`;
+    // Assumir/Recusar para devs
+    if(meHas('dev')&&!presPending&&!blocked){
+      const myAssign2=(d.devs||[]).find(x=>x.user_id==ME.id);
+      if(myAssign2&&myAssign2.acceptance==='Pendente'){
+        btns.push(`<button class="btn btn-sm btn-ok" onclick="claimDemand(${d.id})">${IC.check} Assumir Demanda</button>`);
+        btns.push(`<button class="btn btn-sm btn-d" onclick="acceptDemand(${d.id},false)">Recusar</button>`);
+      } else if(!myAssign2&&(d.devs||[]).length===0&&!['Concluída','Cancelada'].includes(d.status)){
+        btns.push(`<button class="btn btn-sm btn-ok" onclick="claimDemand(${d.id})">${IC.hand} Assumir Demanda</button>`);
+      }
+    }
+    if(btns.length) statusHtml=btns.join('');
 }
 
 // Delegate dev selector
@@ -302,6 +306,7 @@ ${wfHtml}
 <div class="det-sec"><div class="det-sec-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Informações</div>
 <div class="det-info-grid">
 <div class="det-info-item"><span class="det-info-label">Status</span><span class="badge ${sClass(d.status)}">${d.status}</span></div>
+<div class="det-info-item"><span class="det-info-label">Tipo</span><span class="badge">${d.type||'Melhoria'}</span></div>
 <div class="det-info-item"><span class="det-info-label">Prioridade ${priTip}</span><span class="badge ${pClass(d.priority)}">${d.priority}</span></div>
 <div class="det-info-item"><span class="det-info-label">Sistema</span><span class="det-info-val">${d.system_id?`<a href="#" onclick="event.preventDefault();event.stopPropagation();closeM('m-detail');setTimeout(()=>openSystemDetail(${d.system_id}),200)" style="color:var(--acc);font-weight:600;text-decoration:none;cursor:pointer" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(d.system_name||'—')}</a>`:esc(d.system_name||'—')}${d.system_url?` <a href="https://${d.system_url}" target="_blank" style="color:var(--acc)" onclick="event.stopPropagation()">↗</a>`:''}${d.github_url?` <a href="https://${d.github_url}" target="_blank" style="color:var(--t2)" onclick="event.stopPropagation()">⊙</a>`:''}</span></div>
 <div class="det-info-item"><span class="det-info-label">Solicitante</span><span class="det-info-val">${esc(d.requester||'—')}</span></div>
@@ -312,13 +317,16 @@ ${d.needs_presidency_approval==1?`<div class="det-info-item"><span class="det-in
 ${d.approver_name?`<div class="det-info-item"><span class="det-info-label">Aprovado por</span><span class="det-info-val" style="font-size:11px">${esc(d.approver_name)} · ${timeAgo(d.presidency_approved_at)}</span></div>`:''}
 ${d.from_solicitation_id?`<div class="det-info-item"><span class="det-info-label">Origem</span><span class="det-info-val">Solicitação #${d.from_solicitation_id}</span></div>`:''}
 ${d.sprint_name?`<div class="det-info-item"><span class="det-info-label">Sprint</span><span class="det-info-val"><span class="sprint-bar" style="display:inline-flex;margin:0"><span class="sp-dot"></span>${esc(d.sprint_name)}</span></span></div>`:''}
+<div class="det-info-item"><span class="det-info-label">Complexidade</span><span class="det-info-val">${d.complexity||'Moderada'}</span></div>
+${d.started_at&&(d.review_at||d.completed_at)?`<div class="det-info-item"><span class="det-info-label">${d.completed_at?'Tempo Total':'Tempo Execução'}</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#10b981">${(()=>{const s=new Date(d.started_at),e=new Date(d.review_at||d.completed_at),diff=Math.abs(e-s),days=Math.floor(diff/864e5),hrs=Math.floor((diff%864e5)/36e5),mins=Math.floor((diff%36e5)/6e4);return days>0?days+'d '+hrs+'h':hrs>0?hrs+'h '+mins+'min':mins+'min'})()}</span></div>`:d.started_at?`<div class="det-info-item"><span class="det-info-label">Em execução há</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f59e0b">${(()=>{const s=new Date(d.started_at),diff=Math.abs(new Date()-s),days=Math.floor(diff/864e5),hrs=Math.floor((diff%864e5)/36e5),mins=Math.floor((diff%36e5)/6e4);return days>0?days+'d '+hrs+'h':hrs>0?hrs+'h '+mins+'min':mins+'min'})()}</span></div>`:''}
 </div></div>
 <div class="det-sec"><div class="det-sec-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Desenvolvedores</div>${devsDetail||'<span style="font-size:11px;color:var(--t3)">Nenhum dev atribuído</span>'}${delegateHtml}</div>
 ${d.description?`<div class="det-sec"><div class="det-sec-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Descrição</div>${d.description.length>300?`<div id="desc-wrap" style="position:relative"><p id="desc-full" style="font-size:12px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:100px;overflow:hidden">${esc(d.description)}</p><div id="desc-fade" style="position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(transparent,var(--bg3))"></div></div><button class="btn btn-g btn-sm" style="margin-top:6px;width:100%" onclick="toggleDesc(this)">\u25BC Ver mais</button>`:`<p style="font-size:12px;color:var(--t2);line-height:1.6;white-space:pre-wrap">${esc(d.description)}</p>`}</div>`:''}
-<div class="det-sec"><div class="det-sec-t" style="cursor:pointer;user-select:none" onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.img-toggle').textContent=b.style.display==='none'?'\u25B6':'\u25BC'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Imagens (${(d.images||[]).length}) <span class="img-toggle" style="font-size:9px;color:var(--t3);margin-left:4px">\u25BC</span></div><div class="det-img-body"><div class="img-gallery">${imgs||'<span style="font-size:11px;color:var(--t3)">Nenhuma</span>'}</div>${(IS_ADMIN||IS_DIR||(d.devs||[]).some(x=>x.user_id==ME.id))?`<div style="margin-top:8px"><input type="file" id="det-f-${d.id}" accept="image/*" style="display:none" onchange="uploadImg(${d.id},this.files[0])"><button class="btn btn-g btn-sm" onclick="document.getElementById('det-f-${d.id}').click()">${IC.cam} Adicionar</button></div>`:''}</div>
+<div class="det-sec"><div class="det-sec-t" style="cursor:pointer;user-select:none" onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.img-toggle').textContent=b.style.display==='none'?'\u25B6':'\u25BC'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Arquivos (${(d.images||[]).length}) <span class="img-toggle" style="font-size:9px;color:var(--t3);margin-left:4px">\u25BC</span></div><div class="det-img-body"><div class="img-gallery">${imgs||'<span style="font-size:11px;color:var(--t3)">Nenhum arquivo</span>'}</div>${(IS_ADMIN||IS_DIR||(d.devs||[]).some(x=>x.user_id==ME.id))?`<div id="img-drop-${d.id}" style="margin-top:8px;padding:14px;border:2px dashed var(--bdr);border-radius:8px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s" onclick="document.getElementById('det-f-${d.id}').click()" ondragover="event.preventDefault();this.style.borderColor='var(--acc)';this.style.background='var(--bg4)'" ondragleave="this.style.borderColor='var(--bdr)';this.style.background='none'" ondrop="event.preventDefault();this.style.borderColor='var(--bdr)';this.style.background='none';[...event.dataTransfer.files].forEach(f=>uploadImg(${d.id},f))"><input type="file" id="det-f-${d.id}" multiple style="display:none" onchange="[...this.files].forEach(f=>uploadImg(${d.id},f))"><span style="font-size:11px;color:var(--t3)">${IC.file} Clique ou arraste arquivos aqui</span></div><div style="margin-bottom:12px"></div>`:''}</div>
 <div class="det-sec"><div class="det-sec-t" style="cursor:pointer;user-select:none" onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.cmt-toggle').textContent=b.style.display==='none'?'▶':'▼'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Comentários (${(d.comments||[]).length}) <span class="cmt-toggle" style="font-size:9px;color:var(--t3);margin-left:4px">▼</span></div><div class="det-cmt-body" style="cursor:pointer;user-select:none"><div class="comment-list">${cmts||'<span style="font-size:11px;color:var(--t3)">Nenhum</span>'}</div><div class="cbox"><div class="mention-dd" id="mention-dd-${d.id}"></div><input id="cmt-${d.id}" placeholder="Escreva um comentário..." oninput="handleMention(this,${d.id})" onkeydown="handleMentionKey(event,this,${d.id})"><button class="btn btn-p btn-sm" onclick="addCmt(${d.id})">Enviar</button></div></div></div>
-<div class="det-sec"><div class="det-sec-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Ações</div>${statusHtml}</div>
-${hist?`<div class="det-sec"><div class="det-sec-t" style="cursor:pointer;user-select:none" onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.hist-toggle').textContent=b.style.display==='none'?'▶':'▼'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Histórico <span class="hist-toggle" style="font-size:9px;color:var(--t3);margin-left:4px">▶</span></div><div class="det-hist-body" style="display:none">${hist}</div></div>`:''}`;openM('m-detail')}
+${hist?`<div class="det-sec"><div class="det-sec-t" style="cursor:pointer;user-select:none" onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.hist-toggle').textContent=b.style.display==='none'?'▶':'▼'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Histórico <span class="hist-toggle" style="font-size:9px;color:var(--t3);margin-left:4px">▶</span></div><div class="det-hist-body" style="display:none">${hist}</div></div>`:''}
+<div class="det-sec"><div class="det-sec-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Ações</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${(IS_ADMIN||IS_DIR)?`<button class="btn btn-sm btn-p" onclick="closeM('m-detail');openEdit(${d.id})">${IC.edit} Editar</button>`:''}${statusHtml}</div></div>
+`;openM('m-detail')}
 
 async function changeStatus(id,st,justification=''){const r=await api('demand_status',{method:'POST',params:{id},body:{status:st,justification}});if(r?.error)return showToast(r.error);if(!r?.unchanged){if(st==='Concluída'){showToast('✅ Demanda concluída com sucesso!')}else{showToast('Status → '+st)}}openDetail(id);loadPage(getCurrentPage())}
 
@@ -354,7 +362,8 @@ function showMentionDD(did,query){const dd=document.getElementById('mention-dd-'
 function closeMentionDD(did){const dd=document.getElementById('mention-dd-'+did);if(dd)dd.classList.remove('show');mentionIdx=-1}
 function selectMention(did,name){const input=document.getElementById('cmt-'+did);if(!input)return;const v=input.value,pos=input.selectionStart,before=v.substring(0,pos),after=v.substring(pos);const atIdx=before.lastIndexOf('@');const newVal=before.substring(0,atIdx)+'@'+name+' '+after;input.value=newVal;const newPos=atIdx+name.length+2;input.setSelectionRange(newPos,newPos);input.focus();closeMentionDD(did)}
 function handleMentionKey(e,input,did){const dd=document.getElementById('mention-dd-'+did);if(!dd||!dd.classList.contains('show')){if(e.key==='Enter')addCmt(did);return}const items=dd.querySelectorAll('.mention-item');if(e.key==='ArrowDown'){e.preventDefault();mentionIdx=Math.min(mentionIdx+1,items.length-1);items.forEach((it,i)=>it.classList.toggle('active',i===mentionIdx))}else if(e.key==='ArrowUp'){e.preventDefault();mentionIdx=Math.max(mentionIdx-1,0);items.forEach((it,i)=>it.classList.toggle('active',i===mentionIdx))}else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();if(mentionIdx>=0&&items[mentionIdx])selectMention(did,items[mentionIdx].dataset.name);else if(items.length===1)selectMention(did,items[0].dataset.name);else addCmt(did)}else if(e.key==='Escape'){closeMentionDD(did)}}
-async function uploadImg(id,f){if(!f)return;const fd=new FormData();fd.append('image',f);await api('demand_upload',{params:{id},formData:fd});openDetail(id)}
+async function deleteImg(demandId,imgId){if(!confirm('Remover este arquivo?'))return;await api('demand_image_delete',{method:'POST',params:{demand_id:demandId,image_id:imgId}});openDetail(demandId)}
+var _imgQ=[],_imgUp=false;async function uploadImg(id,f){if(!f)return;if(f.size===0||!f.name.includes('.')){showToast('⚠️ Envio de pastas não é permitido');return}_imgQ.push({id,f});if(!_imgUp)_procImgQ()}async function _procImgQ(){if(!_imgQ.length){_imgUp=false;return}_imgUp=true;var o=_imgQ.shift();try{var fd=new FormData();fd.append('image',o.f);var r=await api('demand_upload',{params:{id:o.id},formData:fd});if(r&&r.error)showToast('⚠️ Falha: '+o.f.name+' — '+(r.error||'erro desconhecido'),4000)}catch(e){showToast('⚠️ Não foi possível enviar: '+o.f.name,4000)}if(_imgQ.length){_procImgQ()}else{_imgUp=false;openDetail(o.id)}}
 async function acceptDemand(id,accept){let reason='';if(!accept){reason=prompt('Motivo da recusa:');if(reason===null)return}await api('demand_accept',{method:'POST',params:{id},body:{acceptance:accept?'Aceita':'Recusada',reason}});closeM('m-detail');showToast(accept?IC.check+' Demanda assumida! Desenvolvimento iniciado.':IC.block+' Demanda recusada');loadPage(getCurrentPage());loadNotifCount()}
 async function removeDevFromDemand(did,uid,name){if(!confirm("Remover "+name+" desta demanda?"))return;const r=await api("demand_remove_dev",{method:"POST",params:{id:did},body:{user_id:uid}});if(r?.error)return showToast("⚠️ "+r.error);showToast("✅ "+name+" removido");openDetail(did);loadPage(getCurrentPage())}
 async function claimDemand(id,force=false){const r=await api('demand_claim',{method:'POST',params:{id},body:{force}});if(r?.conflict){if(confirm(r.message+'\n\nDeseja assumir mesmo assim?')){return claimDemand(id,true)}return}if(r?.error&&!r?.success){return showToast(r.error)}closeM('m-detail');if(r?.started)showToast(IC.check+' Demanda assumida! Desenvolvimento iniciado.');else if(r?.already)showToast(IC.check+' Você já está nesta demanda.');else showToast(IC.check+' Demanda atribuída a você!');loadPage(getCurrentPage());loadNotifCount()}
@@ -365,8 +374,31 @@ async function requestCancel(id){const reason=prompt('Motivo do cancelamento:');
 function showToast(msg,dur=3500){const t=document.createElement('div');t.className='toast-notif';t.innerHTML=msg;document.body.appendChild(t);requestAnimationFrame(()=>t.classList.add('show'));setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),400)},dur)}
 async function openNoticeView(id){const n=await api('notice',{params:{id}});if(!n||n.error)return;document.getElementById('nv-title').textContent=n.title;document.getElementById('nv-content').textContent=n.content;document.getElementById('nv-meta').innerHTML=`${esc(n.author_name||'Sistema')} · ${fmtDT(n.created_at)}${n.event_date?' · Data: '+fmtDate(n.event_date):''}`;const imgEl=document.getElementById('nv-image');if(imgEl){imgEl.innerHTML=n.image_file?`<img src="api.php?action=arquivo&f=${n.image_file}" style="max-width:100%;max-height:400px;border-radius:8px;margin-bottom:12px;cursor:pointer" onclick="document.getElementById('img-full-src').src=this.src;document.getElementById('img-full').classList.add('show')">`:''}openM('m-notice-view')}
 async function openMeetingView(id){const ms=await api('meetings')||[];const m=ms.find(x=>x.id==id);if(!m)return showPage('reunioes');const isToday=m.meeting_date===new Date().toISOString().split('T')[0];document.getElementById('mv-body').innerHTML=`<div style="text-align:center;margin-bottom:16px"><div style="font-size:11px;font-family:'JetBrains Mono',monospace;color:${isToday?'var(--ok)':'var(--inf)'};font-weight:600">${isToday?'● HOJE ':''}${fmtDate(m.meeting_date)} às ${(m.meeting_time||'').substring(0,5)}</div><h3 style="margin-top:6px">${esc(m.title)}</h3></div>${m.description?`<p style="font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:12px">${esc(m.description)}</p>`:''}<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;font-size:12px"><span>${IC.clock} ${m.duration_minutes||60} min</span><span>${m.is_online==1?IC.laptop+' Online':IC.mappin+' '+esc(m.location||'Sala TI')}</span><span>${IC.user} ${esc(m.creator_name||'—')}</span></div>${m.is_online==1&&m.online_link?`<a href="${esc(m.online_link)}" target="_blank" class="btn btn-p" style="margin-bottom:12px;display:inline-flex">${IC.link} Entrar na reunião</a>`:''}<div style="margin-top:8px"><div style="font-size:10px;color:var(--t3);text-transform:uppercase;font-weight:700;margin-bottom:6px">Participantes</div><div style="display:flex;flex-wrap:wrap;gap:4px">${(m.participant_names||'').split(', ').filter(Boolean).map(n=>`<span class="tag">${esc(n)}</span>`).join('')}</div></div>`;openM('m-meet-view')}
-function openReviewModal(id){document.getElementById('rev-demand-id').value=id;document.getElementById('rev-obs').value='';document.getElementById('rev-file').value='';openM('m-review-obs')}
-async function submitReview(){const id=document.getElementById('rev-demand-id').value;const obs=document.getElementById('rev-obs').value.trim();const file=document.getElementById('rev-file').files[0];if(obs){await api('demand_comment',{method:'POST',params:{id},body:{text:'📋 Observações de entrega:\n'+obs}})}if(file){const fd=new FormData();fd.append('image',file);await api('demand_upload',{params:{id},formData:fd})}closeM('m-review-obs');await changeStatus(id,'Em Revisão')}
+window._revFiles=[];
+function addRevFiles(fileList){if(!fileList)return;for(let i=0;i<fileList.length;i++)window._revFiles.push(fileList[i]);renderRevFiles();const inp=document.getElementById('rev-file-input');if(inp)inp.value=''}
+function removeRevFile(idx){window._revFiles.splice(idx,1);renderRevFiles()}
+function renderRevFiles(){const el=document.getElementById('rev-files-list');if(!el)return;const fIcons={pdf:'📄',doc:'📝',docx:'📝',xls:'📊',xlsx:'📊',ppt:'📊',pptx:'📊',png:'🖼',jpg:'🖼',jpeg:'🖼',gif:'🖼',zip:'🗜',rar:'🗜',txt:'📋',md:'📋',csv:'📊',mp4:'🎬',mp3:'🎵'};if(!window._revFiles.length){el.innerHTML='';return}el.innerHTML=window._revFiles.map((f,i)=>{const ext=(f.name||'').split('.').pop().toLowerCase();const sz=f.size>1048576?(f.size/1048576).toFixed(1)+' MB':(f.size/1024).toFixed(0)+' KB';return`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg4);border:1px solid var(--bdr);border-radius:8px;margin-bottom:4px"><span style="font-size:16px">${fIcons[ext]||'📎'}</span><span style="flex:1;font-size:12px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span style="font-size:10px;color:var(--t3);white-space:nowrap">${sz}</span><button class="btn btn-g btn-sm" style="color:var(--err);padding:2px 6px" onclick="removeRevFile(${i})">✕</button></div>`}).join('')}
+function openReviewModal(id){
+  window._revFiles=[];
+  const modal=document.getElementById('m-review-obs');if(!modal)return;
+  const titleEl=document.getElementById('det-title');
+  const demandTitle=titleEl?titleEl.textContent:'Demanda #'+id;
+  const body=modal.querySelector('.modal-b');
+  if(body) body.innerHTML=`<div style="text-align:center;margin-bottom:20px"><div style="width:56px;height:56px;border-radius:50%;background:var(--accg);display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div><h3 style="font-size:16px;font-weight:700;margin:0 0 4px">Enviar para Revisão</h3><p style="font-size:12px;color:var(--t3);margin:0">${esc(demandTitle)}</p></div><div style="background:var(--bg4);border:1px solid var(--bdr);border-radius:10px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--t2);display:flex;align-items:flex-start;gap:10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>Ao enviar para revisão, um administrador irá analisar o trabalho realizado. Certifique-se de que tudo está pronto antes de confirmar.</span></div><input type="hidden" id="rev-demand-id" value="${id}"><div class="fg"><label style="display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Observações da entrega <span style="font-weight:400;color:var(--t3)">(opcional)</span></label><textarea id="rev-obs" class="fsel" rows="4" placeholder="Descreva o que foi feito, pontos de atenção, pendências, o que testar..." style="font-size:12px;line-height:1.6;resize:vertical"></textarea></div><div class="fg"><label style="display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Anexar arquivos <span style="font-weight:400;color:var(--t3)">(opcional — qualquer tipo)</span></label><div id="rev-files-list"></div><div id="rev-drop-zone" style="padding:18px;border:2px dashed var(--bdr);border-radius:10px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s" onclick="document.getElementById('rev-file-input').click()" ondragover="event.preventDefault();this.style.borderColor='var(--acc)';this.style.background='var(--accg)'" ondragleave="this.style.borderColor='var(--bdr)';this.style.background='none'" ondrop="event.preventDefault();this.style.borderColor='var(--bdr)';this.style.background='none';addRevFiles(event.dataTransfer.files)"><input type="file" id="rev-file-input" multiple style="display:none" onchange="addRevFiles(this.files)"><div style="font-size:12px;color:var(--t3);display:flex;align-items:center;justify-content:center;gap:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg> Clique ou arraste arquivos aqui</div><div style="font-size:10px;color:var(--t3);margin-top:4px">PDF, DOC, XLS, imagens, ZIP, vídeos, etc.</div></div></div>`;
+  const foot=modal.querySelector('.modal-f');
+  if(foot) foot.innerHTML=`<button class="btn btn-g" onclick="closeM('m-review-obs')">Cancelar</button><button class="btn btn-p" id="rev-submit-btn" onclick="submitReview()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg> Confirmar Envio</button>`;
+  openM('m-review-obs');
+}
+async function submitReview(){
+  const id=document.getElementById('rev-demand-id').value;
+  const obs=document.getElementById('rev-obs').value.trim();
+  const btn=document.getElementById('rev-submit-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Enviando...';}
+  try{
+    if(obs){await api('demand_comment',{method:'POST',params:{id},body:{text:'📋 Observações de entrega:\n'+obs}})}
+    if(window._revFiles&&window._revFiles.length){let _rOk=0,_rFail=[];const validFiles=window._revFiles.filter(f=>{if(f.size===0){_rFail.push(f.name);return false}if(!f.name.includes('.')){_rFail.push(f.name);return false}return true});for(const f of validFiles){try{const fd=new FormData();fd.append('image',f);const r=await api('demand_upload',{params:{id},formData:fd});if(r&&r.error){_rFail.push(f.name)}else{_rOk++}}catch(e){_rFail.push(f.name)}}if(_rFail.length)showToast('⚠️ Falha ao enviar '+_rFail.length+' arquivo(s): '+_rFail.join(', '),5000);if(_rOk>0)showToast('📎 '+_rOk+' arquivo(s) anexado(s)')}
+    window._revFiles=[];closeM('m-review-obs');await changeStatus(id,'Em Revisão');showToast('✅ Enviado para revisão!')
+  }catch(e){showToast('⚠️ Erro: '+(e.message||''));if(btn){btn.disabled=false;btn.innerHTML='Confirmar Envio'}}}
 async function resubmitDemand(id){closeM('m-detail');openEdit(id);setTimeout(()=>{const note=document.createElement('div');note.style.cssText='background:var(--warnb);border:1px solid var(--warn);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:var(--warn)';note.innerHTML='Esta demanda foi <strong>rejeitada</strong> pela presidência. Edite e salve para reenviar para aprovação.';document.querySelector('#m-demand .modal-b')?.prepend(note)},100)}
 
 // Full notifications page
@@ -378,7 +410,7 @@ if(r.length){r.forEach(n=>{const icon=types[n.type]||IC.clock;const unread=n.is_
 else html+='<tr><td colspan="5"><div class="empty"><div class="ei">—</div><p>Sem notificações</p></div></td></tr>';
 html+=`</tbody></table></div></div>`;
 document.getElementById('notificacoes-content').innerHTML=html}
-function previewFiles(files){for(const f of files){pendingFiles.push(f);const r=new FileReader();r.onload=e=>{const p=document.getElementById('upload-preview');const item=document.createElement('div');item.className='up-item';item.innerHTML=`<img src="${e.target.result}"><button class="up-rm" onclick="this.parentElement.remove()">×</button>`;p.appendChild(item)};r.readAsDataURL(f)}}
+function previewFiles(files){const imgExts=['png','jpg','jpeg','gif','webp','svg','bmp'];for(const f of files){if(f.size===0||!f.name.includes('.')){showToast('⚠️ Envio de pastas não é permitido');continue}pendingFiles.push(f);const ext=(f.name||'').split('.').pop().toLowerCase();const isImg=imgExts.includes(ext);const p=document.getElementById('upload-preview');const item=document.createElement('div');item.className='up-item';if(isImg){const r=new FileReader();r.onload=e=>{item.innerHTML=`<img src="${e.target.result}"><button class="up-rm" onclick="const idx=[...this.parentElement.parentElement.children].indexOf(this.parentElement);pendingFiles.splice(idx,1);this.parentElement.remove()">×</button>`;p.appendChild(item)};r.readAsDataURL(f)}else{item.innerHTML=`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--bg3);font-size:9px;color:var(--t2);padding:4px;text-align:center;word-break:break-all">${esc(f.name.length>12?f.name.slice(0,10)+'..':f.name)}</div><button class="up-rm" onclick="const idx=[...this.parentElement.parentElement.children].indexOf(this.parentElement);pendingFiles.splice(idx,1);this.parentElement.remove()">×</button>`;p.appendChild(item)}}}
 const ua=document.getElementById('upload-area');if(ua){ua.addEventListener('dragover',e=>{e.preventDefault();ua.classList.add('dragover')});ua.addEventListener('dragleave',()=>ua.classList.remove('dragover'));ua.addEventListener('drop',e=>{e.preventDefault();ua.classList.remove('dragover');previewFiles(e.dataTransfer.files)})}
 
 // ===== NOTICES =====
@@ -432,7 +464,7 @@ document.addEventListener('click',e=>{if(!e.target.closest('.tech-dropdown')){do
 async function loadCalendario(){
 window._dayEvts={};
 const r=await api('calendar',{params:{month:calMonth}});
-const demands=r?.demandas||[];const meetings=r?.reunioes||[];const sprints=r?.sprints||[];const calNotices=r?.avisos||[];const calNotes=r?.notes||[];
+let demands=r?.demandas||[];const calMine=calMineState;if(calMine){demands=demands.filter(d=>(d.dev_names||'').toLowerCase().includes(ME.name.toLowerCase()))}const meetings=r?.reunioes||[];const sprints=r?.sprints||[];const calNotices=r?.avisos||[];const calNotes=r?.notes||[];
 const [year,month]=[+calMonth.split('-')[0],+calMonth.split('-')[1]-1];
 const mName=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][month];
 const firstDay=new Date(year,month,1).getDay();const daysInMonth=new Date(year,month+1,0).getDate();
@@ -444,9 +476,9 @@ demands.forEach(d=>{
   // Track which days this demand appears on to avoid duplicates
   const addedDays=new Set();
   // Priority: done > deadline > start (only show one event per demand per day)
-  if(d.completed_at){const k=d.completed_at.slice(0,10);if(!evMap[k])evMap[k]=[];evMap[k].push({type:'done',title:d.title,id:d.id});addedDays.add(k)}
+  if(d.completed_at){const k=d.completed_at.slice(0,10);if(!evMap[k])evMap[k]=[];evMap[k].push({type:'done',title:d.title,id:d.id,devs:d.dev_names});addedDays.add(k)}
   if(d.deadline){const k=d.deadline.slice(0,10);if(!addedDays.has(k)){if(!evMap[k])evMap[k]=[];evMap[k].push({type:'deadline',title:d.title,id:d.id,status:d.status,priority:d.priority,sys:d.system_name,devs:d.dev_names});addedDays.add(k)}}
-  if(d.start_date&&d.status!=='Concluída'){const k=d.start_date.slice(0,10);if(!addedDays.has(k)){if(!evMap[k])evMap[k]=[];evMap[k].push({type:'start',title:d.title,id:d.id,status:d.status})}}
+  if(d.start_date&&d.status!=='Concluída'){const k=d.start_date.slice(0,10);if(!addedDays.has(k)){if(!evMap[k])evMap[k]=[];evMap[k].push({type:'start',title:d.title,id:d.id,status:d.status,devs:d.dev_names})}}
 });
 meetings.forEach(m=>{const k=m.meeting_date;if(!evMap[k])evMap[k]=[];evMap[k].push({type:'meeting',title:m.title,id:m.id,time:m.meeting_time?.slice(0,5),online:m.is_online})});
 calNotices.forEach(n=>{if(n.event_date){const k=n.event_date;if(!evMap[k])evMap[k]=[];evMap[k].push({type:'notice',title:n.title,id:n.id,priority:n.priority})}});
@@ -534,11 +566,33 @@ if(upcoming.length){
   upcoming.slice(0,15).forEach(d=>{
     const diffDays=Math.ceil((new Date(d.deadline+'T12:00:00')-today)/(86400000));
     const urgStyle=diffDays<=2?'color:var(--err);font-weight:700':diffDays<=5?'color:var(--warn)':'color:var(--t2)';
-    html+=`<tr style="cursor:pointer" onclick="openDetail(${d.id})"><td style="font-family:'JetBrains Mono',monospace;font-size:11px;${urgStyle}">${fmtDate(d.deadline)} <span style="font-size:9px">(${diffDays}d)</span></td><td style="font-weight:600">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td style="font-size:10px">${esc(d.dev_names||'—')}</td></tr>`;
+    html+=`<tr style="cursor:pointer" onclick="openDetail(${d.id})"><td style="font-family:'JetBrains Mono',monospace;font-size:11px;${urgStyle}">${fmtDate(d.deadline)} <span style="font-size:9px">(${diffDays}d)</span></td><td style="font-weight:600">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge" style="font-size:9px">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td style="font-size:10px">${esc(d.dev_names||'—')}</td></tr>`;
   });
   html+=`</tbody></table></div></div>`;
 }
-document.getElementById('calendario-content').innerHTML=html}
+document.getElementById('calendario-content').innerHTML=html;
+// Toggle Minhas
+if(!document.getElementById('cal-mine-wrap')){
+  var wrap=document.createElement('div');
+  wrap.id='cal-mine-wrap';
+  wrap.innerHTML='<label class="filter-toggle" title="Mostrar apenas suas demandas"><input type="checkbox" id="cal-mine" '+(calMineState?'checked':'')+' onchange="calMineState=this.checked;_applyCalFilter()"><span class="ft-track"><span class="ft-knob"></span></span><span class="ft-text">Minhas</span></label>';
+  var nav=document.querySelector('.cal-nav');
+  if(nav){wrap.style.cssText='margin-left:auto';nav.style.flexWrap='wrap';nav.appendChild(wrap)}
+}
+_applyCalFilter();
+}
+function _applyCalFilter(){
+  var mine=calMineState;
+  document.querySelectorAll('.cal-ev').forEach(function(ev){
+    if(!mine){ev.style.display='';return}
+    var title=ev.getAttribute('title')||'';
+    var myName=ME.name.toLowerCase();
+    var hasMine=title.toLowerCase().includes(myName);
+    var isMeeting=ev.classList.contains('ev-meeting');
+    var isNotice=ev.classList.contains('ev-notice');
+    ev.style.display=(hasMine||isMeeting||isNotice)?'':'none';
+  });
+}
 async function saveCalNote(){const date=document.getElementById('cal-note-date').value;const text=document.getElementById('cal-note-text').value.trim();if(!date||!text)return alert('Preencha data e anotação');await api('calendar_notes',{method:'POST',body:{note_date:date,content:text}});document.getElementById('cal-note-text').value='';loadCalendario()}
 async function deleteCalNote(id){if(!confirm('Excluir anotação?'))return;await api('calendar_note',{method:'DELETE',params:{id}});loadCalendario()}
 async function archiveNote(id){await api('calendar_note',{method:'PUT',params:{id},body:{archived:1}});showToast('Anotação arquivada');loadCalendario()}
@@ -632,18 +686,26 @@ logs.forEach(l=>{
 if(!logs.length) html+='<tr><td colspan="6"><div class="empty"><p>Nenhum registro encontrado</p></div></td></tr>';
 html+=`</tbody></table></div></div>`;
 document.getElementById('auditoria-content').innerHTML=html}
-async function loadSolicitations(){const sols=await api('solicitations')||[];const CAN_REVIEW=IS_ADMIN||IS_DIR;
+var solPage=1;var SOL_PER_PAGE=50;
+var _solsData=[];async function loadSolicitations(resetPage){if(resetPage)solPage=1;const sols=await api('solicitations')||[];_solsData=sols;const CAN_REVIEW=IS_ADMIN||IS_DIR;
 const sf=document.getElementById('sol-f-status')?.value||'';
 const tf=document.getElementById('sol-f-type')?.value||'';
 const syf=document.getElementById('sol-f-system')?.value||'';
-const filtered=sols.filter(s=>{if(sf&&s.status!==sf)return false;if(tf&&(s.type||'Melhoria')!==tf)return false;if(syf&&s.system_id!=syf)return false;return true});
-let html=`<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-p" onclick="openSolModal()">${IC.bulb} Nova Solicitação</button><select class="fsel" id="sol-f-status" onchange="loadSolicitations()"><option value="">Todos os status</option><option value="Pendente" ${sf==='Pendente'?'selected':''}>Pendente</option><option value="Aprovada" ${sf==='Aprovada'?'selected':''}>Aprovada</option><option value="Rejeitada" ${sf==='Rejeitada'?'selected':''}>Rejeitada</option><option value="Convertida" ${sf==='Convertida'?'selected':''}>Convertida</option></select><select class="fsel" id="sol-f-type" onchange="loadSolicitations()"><option value="">Todos os tipos</option><option value="Melhoria" ${tf==='Melhoria'?'selected':''}>Melhoria</option><option value="Correção" ${tf==='Correção'?'selected':''}>Correção</option><option value="Nova Funcionalidade" ${tf==='Nova Funcionalidade'?'selected':''}>Nova Funcionalidade</option><option value="Sugestão de Usuário" ${tf==='Sugestão de Usuário'?'selected':''}>Sugestão de Usuário</option></select><select class="fsel" id="sol-f-system" onchange="loadSolicitations()"><option value="">Todos os sistemas</option>${allSystems.map(s=>`<option value="${s.id}" ${syf==s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>`;
-html+=`<div class="tbl-c"><div class="tbl-bar"><h3>Solicitações</h3><span class="badge" style="background:var(--bg4)">${filtered.filter(s=>s.status==='Pendente').length} pendentes</span><span style="font-size:11px;color:var(--t3);margin-left:8px">${filtered.length} de ${sols.length}</span></div><div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Título</th><th>Tipo</th><th>Sistema</th><th>Prioridade</th><th>Status</th><th>Solicitante</th><th>Analisado por</th><th>Data</th>${CAN_REVIEW?'<th>Ação</th>':''}</tr></thead><tbody>${filtered.length?filtered.map(s=>{const tpCls={'Melhoria':'s-andamento','Correção':'s-cancelada','Nova Funcionalidade':'s-aberta','Sugestão de Usuário':'s-aguardando'}[s.type||'Melhoria']||'';return`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--t3)">#${s.id}</td><td style="font-weight:600">${esc(s.title)}</td><td><span class="badge ${tpCls}" style="font-size:9px">${esc(s.type||'Melhoria')}</span></td><td><span class="tag">${esc(s.system_name||'—')}</span></td><td><span class="badge ${pClass(s.priority)}">${s.priority}</span></td><td><span class="badge ${{Pendente:'accept-pendente',Aprovada:'accept-aceita',Rejeitada:'accept-recusada',Convertida:'s-concluida'}[s.status]}">${s.status}</span></td><td>${esc(s.creator_name||'—')}</td><td>${s.reviewer_name?esc(s.reviewer_name)+' <span style="font-size:9px;color:var(--t3)">'+fmtDT(s.reviewed_at)+'</span>':'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace">${fmtDT(s.created_at)}</td>${CAN_REVIEW?`<td onclick="event.stopPropagation()">${s.status==='Pendente'?`<button class="btn btn-ok btn-sm" onclick="openSolReview(${s.id},'${esc(s.title)}','${esc(s.description||'')}','${s.system_id||''}','${s.priority||'Média'}','${esc(s.creator_name||'')}')">Analisar</button>`:s.converted_demand_id?`<button class="btn btn-g btn-sm" onclick="openDetail(${s.converted_demand_id})">Ver demanda</button>`:''}</td>`:''}</tr>`}).join(''):'<tr><td colspan="10"><div class="empty"><p>Nenhuma solicitação encontrada</p></div></td></tr>'}</tbody></table></div></div>`;
-document.getElementById('sol-content').innerHTML=html}
+const sq=document.getElementById('sol-f-search')?.value?.trim().toLowerCase()||'';
+const filtered=sols.filter(s=>{if(sf&&s.status!==sf)return false;if(tf&&(s.type||'Melhoria')!==tf)return false;if(syf&&s.system_id!=syf)return false;if(sq){const idMatch=('#'+s.id).includes(sq)||String(s.id)===sq;const nameMatch=(s.requester_name||'').toLowerCase().includes(sq)||(s.title||'').toLowerCase().includes(sq)||(s.creator_name||'').toLowerCase().includes(sq);if(!idMatch&&!nameMatch)return false}return true});
+const totalFiltered=filtered.length;const paged=filtered.slice(0,solPage*SOL_PER_PAGE);const hasMore=paged.length<totalFiltered;
+let html=`<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-p" onclick="openSolModal()">${IC.bulb} Nova Solicitação</button><input type="text" id="sol-f-search" placeholder="Buscar # ou nome..." oninput="loadSolicitations(true)" autocomplete="off" data-lpignore="true" value="${sq}" style="padding:8px 12px;border-radius:8px;border:1px solid var(--bdr);background:var(--bg3);color:var(--t1);font-size:12px;width:160px;font-family:inherit"><a href="solicitacao.php" target="_blank" class="btn btn-g" style="font-size:12px;padding:8px 14px;display:inline-flex;align-items:center;gap:6px;text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Link Externo</a><select class="fsel" id="sol-f-status" onchange="loadSolicitations(true)"><option value="">Todos os status</option><option value="Pendente" ${sf==='Pendente'?'selected':''}>Pendente</option><option value="Aprovada" ${sf==='Aprovada'?'selected':''}>Aprovada</option><option value="Rejeitada" ${sf==='Rejeitada'?'selected':''}>Rejeitada</option><option value="Convertida" ${sf==='Convertida'?'selected':''}>Convertida</option></select><select class="fsel" id="sol-f-type" onchange="loadSolicitations(true)"><option value="">Todos os tipos</option><option value="Melhoria" ${tf==='Melhoria'?'selected':''}>Melhoria</option><option value="Correção" ${tf==='Correção'?'selected':''}>Correção</option><option value="Nova Funcionalidade" ${tf==='Nova Funcionalidade'?'selected':''}>Nova Funcionalidade</option><option value="Sugestão de Usuário" ${tf==='Sugestão de Usuário'?'selected':''}>Sugestão de Usuário</option></select><select class="fsel" id="sol-f-system" onchange="loadSolicitations(true)"><option value="">Todos os sistemas</option>${allSystems.map(s=>`<option value="${s.id}" ${syf==s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>`;
+html+=`<div class="tbl-c"><div class="tbl-bar"><h3>Solicitações</h3><span class="badge" style="background:var(--bg4)">${filtered.filter(s=>s.status==='Pendente').length} pendentes</span><span style="font-size:11px;color:var(--t3);margin-left:8px">${paged.length} de ${totalFiltered}</span></div><div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Título</th><th>Tipo</th><th>Sistema</th><th>Prioridade</th><th>Status</th><th>Solicitante</th><th>Analisado por</th><th>Data</th>${CAN_REVIEW?'<th>Ação</th>':''}</tr></thead><tbody>${paged.length?paged.map(s=>{const tpCls={'Melhoria':'s-andamento','Correção':'s-cancelada','Nova Funcionalidade':'s-aberta','Sugestão de Usuário':'s-aguardando'}[s.type||'Melhoria']||'';return`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--t3)">#${s.id}</td><td style="font-weight:600">${esc(s.title)}</td><td><span class="badge ${tpCls}" style="font-size:9px">${esc(s.type||'Melhoria')}</span></td><td><span class="tag">${esc(s.system_name||'—')}</span></td><td><span class="badge ${pClass(s.priority)}">${s.priority}</span></td><td><span class="badge ${{Pendente:'accept-pendente',Aprovada:'accept-aceita',Rejeitada:'accept-recusada',Convertida:'s-concluida'}[s.status]}">${s.status}</span></td><td>${esc(s.requester_name||s.creator_name||'—')+(s.requester_department?'<div style="font-size:10px;color:var(--t3)">'+esc(s.requester_department)+'</div>':'')}</td><td>${s.reviewer_name?esc(s.reviewer_name)+' <span style="font-size:9px;color:var(--t3)">'+fmtDT(s.reviewed_at)+'</span>':'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace">${fmtDT(s.created_at)}</td>${CAN_REVIEW?`<td onclick="event.stopPropagation()">${s.status==='Pendente'?`<button class="btn btn-ok btn-sm" onclick="openSolReview(${s.id})">Analisar</button>`:s.converted_demand_id?`<button class="btn btn-g btn-sm" onclick="openDetail(${s.converted_demand_id})">Ver demanda</button>`:''}</td>`:''}</tr>`}).join(''):'<tr><td colspan="10"><div class="empty"><p>Nenhuma solicitação encontrada</p></div></td></tr>'}</tbody></table></div>${hasMore?'<div style="text-align:center;padding:12px"><button class="btn btn-g" onclick="solPage++;loadSolicitations()">Carregar mais (${totalFiltered-paged.length} restantes)</button></div>':''}</div>`;
+document.getElementById('sol-content').innerHTML=html;
+const si=document.getElementById('sol-f-search');if(si&&sq){si.value=sq;si.focus();si.setSelectionRange(sq.length,sq.length)}
+const pendCount=sols.filter(s=>s.status==='Pendente').length;
+const bSol=document.getElementById('b-sol');if(bSol){bSol.textContent=pendCount;bSol.style.display=pendCount>0?'':'none'}}
+if(!window._solInterval){window._solInterval=setInterval(()=>{const solEl=document.getElementById('sol-content');if(solEl&&solEl.offsetParent!==null&&!document.getElementById('sol-f-search')?.matches(':focus'))loadSolicitations()},30000)}
 function openSolModal(){document.getElementById('sol-title').value='';document.getElementById('sol-desc').value='';document.getElementById('sol-system').innerHTML='<option value="">Selecione...</option>'+allSystems.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');document.getElementById('sol-priority').value='Média';document.getElementById('sol-type').value=IS_USER?'Sugestão de Usuário':'Melhoria';openM('m-solicitation')}
 async function saveSolicitation(){const body={title:document.getElementById('sol-title').value.trim(),description:document.getElementById('sol-desc').value.trim(),system_id:document.getElementById('sol-system').value||null,type:document.getElementById('sol-type').value,priority:document.getElementById('sol-priority').value};if(!body.title||!body.description)return alert('Preencha título e descrição');await api('solicitations',{method:'POST',body});closeM('m-solicitation');showToast('Solicitação enviada!');loadSolicitations()}
-function openSolReview(id,title,desc,sysId,pri,creatorName){document.getElementById('sr-id').value=id;document.getElementById('sr-sys-id').value=sysId||'';document.getElementById('sr-pri').value=pri||'Média';document.getElementById('sr-title').textContent='#'+id+' — '+title;document.getElementById('sr-desc').textContent=desc;document.getElementById('sr-notes').value='';const crEl=document.getElementById('sr-creator');if(crEl)crEl.textContent=creatorName||'';openM('m-sol-review')}
-async function approveSolAsDemand(){const solId=document.getElementById('sr-id').value;const title=document.getElementById('sr-title').textContent.replace(/^#\d+\s*—\s*/,'');const desc=document.getElementById('sr-desc').textContent;const sysId=document.getElementById('sr-sys-id').value;const pri=document.getElementById('sr-pri').value;const notes=document.getElementById('sr-notes').value.trim();const solicitante=document.getElementById('sr-creator')?.textContent||'';closeM('m-sol-review');openNewDemand();document.getElementById('d-title').value=title;document.getElementById('d-desc').value=desc;if(sysId){document.getElementById('d-system').value=sysId}document.getElementById('d-priority').value=pri||'Média';document.getElementById('d-requester').value=solicitante||('Solicitação #'+solId);document.getElementById('d-edit-id').value='';document.getElementById('d-edit-id').dataset.solicitationId=solId;document.getElementById('d-edit-id').dataset.solNotes=notes;document.getElementById('m-demand-t').textContent='Criar Demanda (Solicitação #'+solId+')'}
+function openSolReview(id){const s=_solsData.find(x=>x.id==id);if(!s)return;document.getElementById('sr-id').value=id;document.getElementById('sr-sys-id').value=s.system_id||'';document.getElementById('sr-pri').value=s.priority||'Média';document.getElementById('sr-title').textContent='#'+id+' — '+(s.title||'');document.getElementById('sr-desc').textContent=s.description||'';document.getElementById('sr-notes').value='';const crEl=document.getElementById('sr-creator');if(crEl)crEl.textContent=s.requester_name||s.creator_name||'';openM('m-sol-review')}
+async function approveSolAsDemand(){const solId=document.getElementById('sr-id').value;const title=document.getElementById('sr-title').textContent.replace(/^#\d+\s*—\s*/,'');const desc=document.getElementById('sr-desc').textContent;const sysId=document.getElementById('sr-sys-id').value;const pri=document.getElementById('sr-pri').value;const notes=document.getElementById('sr-notes').value.trim();const solicitante=document.getElementById('sr-creator')?.textContent||'';closeM('m-sol-review');openNewDemand();document.getElementById('d-title').value=title;document.getElementById('d-desc').value=desc;if(sysId){document.getElementById('d-system').value=sysId}document.getElementById('d-priority').value=pri||'Média';const _sol=_solsData.find(x=>x.id==solId);if(_sol&&_sol.type)document.getElementById('d-type').value=_sol.type;document.getElementById('d-requester').value=solicitante||('Solicitação #'+solId);document.getElementById('d-edit-id').value='';document.getElementById('d-edit-id').dataset.solicitationId=solId;document.getElementById('d-edit-id').dataset.solNotes=notes;document.getElementById('m-demand-t').textContent='Criar Demanda (Solicitação #'+solId+')'}
+async function deleteSol(id){if(!confirm('Apagar solicitação #'+id+'? Esta ação não pode ser desfeita.'))return;await api('solicitation_delete',{method:'POST',params:{id}});showToast('Solicitação apagada');loadSolicitations(true)}
 async function reviewSol(status){const id=document.getElementById('sr-id').value;const notes=document.getElementById('sr-notes').value.trim();await api('solicitation_review',{method:'POST',params:{id},body:{status,review_notes:notes}});closeM('m-sol-review');loadSolicitations()}
 
  
@@ -1487,7 +1549,7 @@ showToast(IC.check+' PDF exportado!');
 // ===== APPROVALS =====
 async function loadApprovals(){const[pending,rejected]=await Promise.all([api('demands',{params:{presidency_status:'Pendente'}})||[],api('demands',{params:{presidency_status:'Rejeitada'}})||[]]);
 let html=`<div class="tbl-c"><div class="tbl-bar"><h3>${IC_CROWN} Aguardando Aprovação da Presidência</h3><span class="badge s-aguardando">${(pending||[]).length} pendentes</span></div><div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Demanda</th><th>Sistema</th><th>Prioridade</th><th>Solicitante</th><th>Devs</th><th>Ações</th></tr></thead><tbody>`;
-if(pending&&pending.length){pending.forEach(d=>{html+=`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--t3)">#${d.id}</td><td style="font-weight:600;cursor:pointer" onclick="openDetail(${d.id})">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td>${esc(d.requester||'—')}</td><td>${devsHtml(d.devs)}</td><td onclick="event.stopPropagation()"><button class="btn btn-gold btn-sm" onclick="openApproval(${d.id},'${esc(d.title)}')">${IC_CROWN} Analisar</button></td></tr>`})}
+if(pending&&pending.length){pending.forEach(d=>{html+=`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--t3)">#${d.id}</td><td style="font-weight:600;cursor:pointer" onclick="openDetail(${d.id})">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge" style="font-size:9px">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td>${esc(d.requester||'—')}</td><td>${devsHtml(d.devs)}</td><td onclick="event.stopPropagation()"><button class="btn btn-gold btn-sm" onclick="openApproval(${d.id},'${esc(d.title)}')">${IC_CROWN} Analisar</button></td></tr>`})}
 else html+='<tr><td colspan="7"><div class="empty" style="padding:16px"><p>Nenhuma pendente</p></div></td></tr>';
 html+=`</tbody></table></div></div>`;
 
@@ -1518,7 +1580,7 @@ let html=`<div class="profile-grid">`;
 html+=`<div style="display:flex;flex-direction:column;gap:16px">`;
 // Avatar card
 html+=`<div class="tbl-c" style="padding:28px 20px;text-align:center">`;
-html+=`<div style="width:100px;height:100px;border-radius:50%;margin:0 auto 14px;background:${p.avatar_color||'#3b82f6'};display:flex;align-items:center;justify-content:center;font-size:38px;color:#fff;font-weight:700;position:relative;overflow:hidden;cursor:pointer;box-shadow:0 4px 20px ${p.avatar_color||'#3b82f6'}40" onclick="document.getElementById('avatar-upload').click()" title="Alterar foto">`;
+html+=`<div style="width:80px;height:80px;border-radius:50%;margin:0 auto 14px;background:${p.avatar_color||'#3b82f6'};display:flex;align-items:center;justify-content:center;font-size:38px;color:#fff;font-weight:700;position:relative;overflow:hidden;cursor:pointer;box-shadow:0 4px 20px ${p.avatar_color||'#3b82f6'}40" onclick="document.getElementById('avatar-upload').click()" title="Alterar foto">`;
 if(p.avatar_file)html+=`<img src="api.php?action=arquivo&f=${p.avatar_file}" style="width:100%;height:100%;object-fit:cover">`;
 else html+=`${(p.name||'?')[0]}`;
 html+=`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:4px 0;display:flex;align-items:center;justify-content:center;gap:3px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Alterar</div>`;
@@ -1534,7 +1596,7 @@ html+=`</div></div>`;
 // Performance ring
 html+=`<div class="tbl-c" style="padding:20px;text-align:center">`;
 html+=`<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);margin-bottom:12px">Taxa de Conclusão</div>`;
-html+=`<div style="width:90px;height:90px;margin:0 auto 8px;position:relative"><svg width="90" height="90" viewBox="0 0 90 90"><circle cx="45" cy="45" r="38" fill="none" stroke="var(--bdr)" stroke-width="6"/><circle cx="45" cy="45" r="38" fill="none" stroke="${pct>=70?'#10b981':pct>=40?'#f59e0b':'#ef4444'}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${pct*2.39} 239" transform="rotate(-90 45 45)" style="transition:stroke-dasharray .8s ease"/></svg><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column"><span style="font-size:22px;font-weight:800">${pct}%</span></div></div>`;
+html+=`<div style="width:80px;height:80px;margin:0 auto 8px;position:relative"><svg width="80" height="80" viewBox="0 0 90 90"><circle cx="45" cy="45" r="38" fill="none" stroke="var(--bdr)" stroke-width="6"/><circle cx="45" cy="45" r="38" fill="none" stroke="${pct>=70?'#10b981':pct>=40?'#f59e0b':'#ef4444'}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${pct*2.39} 239" transform="rotate(-90 45 45)" style="transition:stroke-dasharray .8s ease"/></svg><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column"><span style="font-size:22px;font-weight:800">${pct}%</span></div></div>`;
 html+=`<div style="font-size:10px;color:var(--t3)">${s.completed||0} de ${s.total||0} demandas</div>`;
 html+=`</div>`;
 
@@ -2146,39 +2208,228 @@ async function deleteSurvey(id){if(!confirm('Excluir pesquisa?'))return;await ap
 async function openSystemDetail(id){
 const d=await api('system_detail',{params:{id}});
 if(!d||d.error)return showToast(d?.error||'Erro');
-let html='<div style="padding:20px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
-html+='<h3 style="font-size:16px">'+esc(d.name)+'</h3>';
-html+='<button class="btn btn-g btn-sm" onclick="closeM(\'m-detail\')">'+IC.x+' Fechar</button></div>';
-// Stats
 const st=d.stats||{};
-html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">';
-html+='<div class="sc blue"><div class="sc-l">Total</div><div class="sc-v">'+(st.total||0)+'</div></div>';
-html+='<div class="sc green"><div class="sc-l">Concluídas</div><div class="sc-v">'+(st.done||0)+'</div></div>';
-html+='<div class="sc" style="border-left:3px solid var(--acc)"><div class="sc-l">Ativas</div><div class="sc-v">'+(st.active||0)+'</div></div>';
-html+='</div>';
-// Tabs
-html+='<div class="sys-detail-tabs"><button class="active" onclick="sysTab(this,\'sys-demands\')">Demandas ('+(d.demands||[]).length+')</button><button onclick="sysTab(this,\'sys-docs\')">Documentações ('+(d.docs||[]).length+')</button></div>';
-// Demands tab
-html+='<div id="sys-demands"><div style="max-height:300px;overflow-y:auto">';
-(d.demands||[]).forEach(dm=>{
-  const stColor={'Aberta':'var(--pnd)','Em Andamento':'var(--acc)','Em Revisão':'var(--warn)','Concluída':'var(--ok)','Cancelada':'var(--err)'}[dm.status]||'var(--t3)';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--bdr);font-size:12px;cursor:pointer" onclick="closeM(\'m-detail\');setTimeout(()=>openDetail('+dm.id+'),200)">';
-  html+='<div><span style="font-weight:600">'+esc(dm.title)+'</span> <span style="font-size:10px;color:'+stColor+'">'+dm.status+'</span></div>';
-  html+='<span style="font-size:10px;color:var(--t3)">'+fmtDT(dm.created_at)+'</span></div>';
+const demands=d.demands||[];
+const docs=d.docs||[];
+const comments=d.comments||[];
+const sysFiles=d.files||[];
+const history=d.history||[];
+const devNames=(d.dev_names||'').split(', ').filter(Boolean);
+const devColors=(d.dev_colors||'').split(',');
+const devAvatars=(d.dev_avatars||'').split(',');
+const devRoles=(d.dev_roles||'').split('|');
+const techs=(d.technology||'').split(',').filter(Boolean);
+const total=st.total||0,done=st.done||0,active=st.active||0,urgent=st.urgent||0;
+const avgDays=st.avg_days?Math.round(parseFloat(st.avg_days)*24*60):'—';
+const slaTotal=st.sla_total||0,slaOnTime=st.sla_on_time||0;
+const slaRate=slaTotal?Math.round(slaOnTime/slaTotal*100):0;
+const compRate=total?Math.round(done/total*100):0;
+const stColors={'Aberta':'#6366f1','Aguardando Aceite':'#d4a017','Em Andamento':'#3b82f6','Em Revisão':'#f59e0b','Concluída':'#10b981','Cancelada':'#ef4444'};
+const stDist={};demands.forEach(dm=>{stDist[dm.status]=(stDist[dm.status]||0)+1});
+const priDist={};demands.forEach(dm=>{priDist[dm.priority]=(priDist[dm.priority]||0)+1});
+const monthly={};demands.filter(dm=>dm.completed_at).forEach(dm=>{const m=dm.completed_at.substring(0,7);monthly[m]=(monthly[m]||0)+1});
+const monthlyArr=Object.entries(monthly).sort((a,b)=>a[0].localeCompare(b[0])).slice(-6);
+const imgExts=['png','jpg','jpeg','gif','webp','svg'];
+const imgBase='api.php?action=arquivo&f=';
+
+let html='<div style="padding:0">';
+
+// ── HEADER ──
+const stBadge={'Em uso':'s-concluida','Testes':'s-revisao','Pausado':'s-cancelada','Em desenvolvimento':'s-andamento','Não utilizado':'s-aberta'};
+html+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px">
+<div style="flex:1;min-width:0">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <h2 style="margin:0;font-size:20px;font-weight:800;letter-spacing:-.5px">${esc(d.name)}</h2>
+    <span class="badge ${stBadge[d.status]||''}">${d.status||'—'}</span>
+  </div>
+  ${d.description?`<p style="font-size:12px;color:var(--t2);line-height:1.5;margin:0 0 10px">${esc(d.description)}</p>`:''}
+  <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+    ${techs.map(t=>`<span class="tech-tag">${esc(t.trim())}</span>`).join('')}
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;align-items:center">
+    ${d.url?`<a href="https://${d.url}" target="_blank" class="tag" style="color:var(--ok);text-decoration:none" onclick="event.stopPropagation()">${IC.link} ${esc(d.url)}</a>`:''}
+    ${d.github_url?`<a href="https://${d.github_url}" target="_blank" class="tag" style="color:var(--t1);text-decoration:none" onclick="event.stopPropagation()">${IC.git} GitHub</a>`:''}
+    ${d.department?`<span class="tag">${IC.folder} ${esc(d.department)}</span>`:''}
+  </div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:10px">
+    ${devNames.map((n,i)=>av(n,devColors[i],26,devAvatars[i]||'',devRoles[i]||'')).join('')}
+  </div>
+</div>
+<div style="display:flex;gap:6px;flex-shrink:0">
+  ${IS_ADMIN?`<button class="btn btn-g btn-sm" onclick="closeM('m-detail');editSystem(${d.id})">${IC.edit}</button>`:''}
+</div></div>`;
+
+// ── KPI CARDS ──
+html+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:16px">
+<div class="sc blue"><div class="sc-l">Total</div><div class="sc-v">${total}</div></div>
+<div class="sc green"><div class="sc-l">Concluídas</div><div class="sc-v">${done}</div></div>
+<div class="sc" style="border-left:3px solid var(--acc)"><div class="sc-l">Ativas</div><div class="sc-v">${active}</div></div>
+<div class="sc purple"><div class="sc-l">Conclusão</div><div class="sc-v">${compRate}%</div></div>
+<div class="sc" style="border-left:3px solid #f59e0b"><div class="sc-l">Tempo Médio</div><div class="sc-v">${avgDays==='—'?'—':avgDays<60?avgDays+'min':Math.floor(avgDays/60)+'h '+avgDays%60+'m'}</div></div>
+<div class="sc" style="border-left:3px solid #10b981"><div class="sc-l">SLA</div><div class="sc-v">${slaRate}%</div></div>
+</div>`;
+
+// ── STATUS BAR + COMPLETION ──
+if(total>0){
+html+=`<div style="display:flex;gap:16px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+<div style="flex:1;min-width:200px">
+  <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:6px">Status</div>
+  <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bg4)">
+    ${Object.entries(stDist).map(([s,c])=>`<div style="width:${(c/total*100)}%;background:${stColors[s]||'#666'}" title="${s}: ${c}"></div>`).join('')}
+  </div>
+  <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+    ${Object.entries(stDist).map(([s,c])=>`<span style="font-size:10px;color:var(--t3);display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:${stColors[s]}"></span>${s}: ${c}</span>`).join('')}
+  </div>
+  <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:12px 0 6px">Prioridade</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    ${Object.entries(priDist).map(([p,c])=>`<span class="badge ${pClass(p)}" style="font-size:10px">${p}: ${c}</span>`).join('')}
+  </div>
+</div>
+<div style="text-align:center;flex-shrink:0">
+  <svg width="80" height="80" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="var(--bdr)" stroke-width="5"/><circle cx="40" cy="40" r="34" fill="none" stroke="${compRate>=70?'#10b981':compRate>=40?'#f59e0b':'#ef4444'}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${compRate*2.136} 213.6" transform="rotate(-90 40 40)"/></svg>
+  <div style="margin-top:-55px;position:relative;font-size:18px;font-weight:800">${compRate}%</div>
+  <div style="margin-top:32px;font-size:9px;color:var(--t3)">Conclusão</div>
+</div></div>`;
+}
+
+// ── MONTHLY ──
+if(monthlyArr.length>1){
+const maxM=Math.max(...monthlyArr.map(x=>x[1]),1);
+html+=`<div style="margin-bottom:16px">
+<div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:8px">Entregas por Mês</div>
+<div style="display:flex;align-items:flex-end;gap:4px;height:50px">
+${monthlyArr.map(([m,c])=>{const h=Math.max((c/maxM)*45,3);return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><span style="font-size:9px;font-weight:700;color:var(--t2)">${c}</span><div style="width:100%;height:${h}px;background:var(--ok);border-radius:3px 3px 0 0;min-width:16px"></div><span style="font-size:8px;color:var(--t3)">${m.substring(5)}</span></div>`}).join('')}
+</div></div>`;
+}
+
+// ── TABS ──
+html+=`<div class="sys-detail-tabs">
+<button class="active" onclick="sysTab(this,'sys-demands')">${IC.clipboard} Demandas (${demands.length})</button>
+<button onclick="sysTab(this,'sys-files')">${IC.file} Arquivos (${sysFiles.length})</button>
+<button onclick="sysTab(this,'sys-comments')">${IC.comment} Comentários (${comments.length})</button>
+<button onclick="sysTab(this,'sys-docs')">${IC.lock_sm} Docs (${docs.length})</button>
+<button onclick="sysTab(this,'sys-activity')">${IC.clock} Atividade</button>
+</div>`;
+
+// ── TAB: DEMANDAS ──
+html+=`<div id="sys-demands"><div style="max-height:400px;overflow-y:auto">`;
+if(demands.length){
+html+=`<table><thead><tr><th>#</th><th>Demanda</th><th>Status</th><th>Prioridade</th><th>Devs</th><th>Prazo</th></tr></thead><tbody>`;
+demands.forEach(dm=>{
+  let dlHtml=fmtDate(dm.deadline);
+  if(dm.deadline&&!['Concluída','Cancelada'].includes(dm.status)){
+    const diff=Math.ceil((new Date(dm.deadline+'T12:00:00')-Date.now())/86400000);
+    if(diff<0)dlHtml+=` <span style="color:var(--err);font-size:9px">(${Math.abs(diff)}d atraso)</span>`;
+    else if(diff<=3)dlHtml+=` <span style="color:var(--err);font-size:9px">(${diff}d)</span>`;
+  }
+  const dmDevs=(dm.devs||[]).map(dv=>av(dv.name,dv.avatar_color,20,dv.avatar_file,dv.role)).join('');
+  html+=`<tr onclick="closeM('m-detail');setTimeout(()=>openDetail(${dm.id}),200)" style="cursor:pointer">
+    <td style="font-family:'JetBrains Mono',monospace;color:var(--t3);font-size:10px">#${dm.id}</td>
+    <td style="font-weight:600;font-size:12px">${esc(dm.title)}</td>
+    <td><span class="badge ${sClass(dm.status)}" style="font-size:9px">${dm.status}</span></td>
+    <td><span class="badge ${pClass(dm.priority)}" style="font-size:9px">${dm.priority}</span></td>
+    <td><div style="display:flex;gap:2px">${dmDevs||'—'}</div></td>
+    <td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${dlHtml}</td>
+  </tr>`;
 });
-if(!(d.demands||[]).length)html+='<div class="empty"><p>Nenhuma demanda</p></div>';
-html+='</div></div>';
-// Docs tab
-html+='<div id="sys-docs" style="display:none"><div style="max-height:300px;overflow-y:auto">';
-(d.docs||[]).forEach(dc=>{
-  html+='<div class="doc-card" style="margin-bottom:8px" onclick="closeM(\'m-detail\');setTimeout(()=>{loadPage(\'docs\');setTimeout(()=>openDoc('+dc.id+'),300)},200)">';
-  html+='<div class="dc-t">'+(dc.has_password?'🔒 ':'')+esc(dc.title)+'</div>';
-  html+='<div class="dc-meta">'+esc(dc.category||'Geral')+' · '+fmtDT(dc.created_at)+'</div></div>';
+html+=`</tbody></table>`;
+}else html+=`<div class="empty" style="padding:30px"><p>Nenhuma demanda</p></div>`;
+html+=`</div></div>`;
+
+// ── TAB: ARQUIVOS ──
+html+=`<div id="sys-files" style="display:none"><div style="max-height:400px;overflow-y:auto">`;
+if(sysFiles.length){
+html+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">`;
+sysFiles.forEach(f=>{
+  const ext=(f.original_name||f.filename||'').split('.').pop().toLowerCase();
+  const isImg=imgExts.includes(ext);
+  if(isImg){
+    html+=`<div style="position:relative;border:1px solid var(--bdr);border-radius:8px;overflow:hidden;cursor:pointer" onclick="document.getElementById('img-full-src').src='${imgBase}${f.filename}';document.getElementById('img-full').classList.add('show')">
+      <img src="${imgBase}${f.filename}" style="width:100%;height:120px;object-fit:cover">
+      <div style="padding:8px;background:var(--bg4)">
+        <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.original_name||f.filename)}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(f.demand_title||'—')} · ${esc(f.uploader_name||'—')} · ${timeAgo(f.created_at)}</div>
+      </div></div>`;
+  }else{
+    const fColors={pdf:'#ef4444',doc:'#3b82f6',docx:'#3b82f6',xls:'#10b981',xlsx:'#10b981',ppt:'#f59e0b',pptx:'#f59e0b',zip:'#8b5cf6',rar:'#8b5cf6',txt:'#64748b',mp4:'#ec4899',mp3:'#06b6d4'};
+    const fc=fColors[ext]||'#94a3b8';
+    html+=`<a href="${imgBase}${f.filename}" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg4);border:1px solid var(--bdr);border-radius:8px;text-decoration:none;transition:.15s" onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--bdr)'">
+      <div style="width:40px;height:40px;border-radius:8px;background:${fc}15;color:${fc};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;text-transform:uppercase;flex-shrink:0">${ext}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.original_name||f.filename)}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(f.demand_title||'—')} · ${esc(f.uploader_name||'—')} · ${timeAgo(f.created_at)}</div>
+      </div></a>`;
+  }
 });
-if(!(d.docs||[]).length)html+='<div class="empty"><p>Nenhuma documentação</p></div>';
-html+='</div></div>';
+html+=`</div>`;
+}else html+=`<div class="empty" style="padding:30px"><p>Nenhum arquivo anexado</p></div>`;
+html+=`</div></div>`;
+
+// ── TAB: COMENTÁRIOS ──
+html+=`<div id="sys-comments" style="display:none"><div style="max-height:400px;overflow-y:auto">`;
+if(comments.length){
+comments.forEach(c=>{
+  html+=`<div style="padding:10px 12px;border-bottom:1px solid var(--bdr);cursor:pointer" onclick="closeM('m-detail');setTimeout(()=>openDetail(${c.demand_id}),200)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="display:flex;align-items:center;gap:6px">
+        ${av(c.user_name,c.avatar_color,22)}
+        <span style="font-size:12px;font-weight:600;color:var(--acc)">${esc(c.user_name||'—')}</span>
+      </div>
+      <span style="font-size:9px;color:var(--t3);font-family:'JetBrains Mono',monospace" title="${fmtDT(c.created_at)}">${timeAgo(c.created_at)}</span>
+    </div>
+    <div style="font-size:11px;color:var(--t2);line-height:1.5;white-space:pre-wrap;margin-left:28px">${esc((c.text||'').substring(0,200))}${(c.text||'').length>200?'...':''}</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:4px;margin-left:28px">${IC.clipboard} ${esc(c.demand_title||'Demanda #'+c.demand_id)}</div>
+  </div>`;
+});
+}else html+=`<div class="empty" style="padding:30px"><p>Nenhum comentário</p></div>`;
+html+=`</div></div>`;
+
+// ── TAB: DOCS ──
+html+=`<div id="sys-docs" style="display:none"><div style="max-height:400px;overflow-y:auto">`;
+if(docs.length){
+html+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">`;
+docs.forEach(dc=>{
+  html+=`<div onclick="closeM('m-detail');setTimeout(()=>{showPage('docs');setTimeout(()=>openDoc(${dc.id}),300)},200)" style="cursor:pointer;padding:14px;background:var(--bg4);border:1px solid var(--bdr);border-radius:10px;transition:.15s" onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--bdr)'">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      ${dc.has_password?IC.lock_sm:''}
+      <span style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(dc.title)}</span>
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <span class="tag" style="font-size:9px">${esc(dc.category||'Geral')}</span>
+      ${dc.file_count?`<span class="tag" style="font-size:9px">${IC.file} ${dc.file_count}</span>`:''}
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:6px">${esc(dc.author_name||'—')} · ${timeAgo(dc.updated_at||dc.created_at)}</div>
+  </div>`;
+});
+html+=`</div>`;
+}else html+=`<div class="empty" style="padding:30px"><p>Nenhuma documentação</p></div>`;
+html+=`</div></div>`;
+
+// ── TAB: ATIVIDADE ──
+html+=`<div id="sys-activity" style="display:none"><div style="max-height:400px;overflow-y:auto">`;
+if(history.length){
+let lastDate='';
+history.slice(0,60).forEach(h=>{
+  const dt=(h.created_at||'').substring(0,10);
+  if(dt!==lastDate){lastDate=dt;html+=`<div style="font-size:10px;font-weight:700;color:var(--acc);padding:10px 0 4px;border-bottom:1px solid var(--bdr);margin-bottom:4px">${fmtDate(dt)}</div>`}
+  html+=`<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0">
+    <div style="width:6px;height:6px;border-radius:50%;background:var(--acc);margin-top:5px;flex-shrink:0"></div>
+    <div style="flex:1;min-width:0">
+      <span style="font-size:11px;color:var(--acc);font-weight:600">${esc(h.user_name||'Sistema')}</span>
+      <span style="font-size:11px;color:var(--t2)"> ${esc(h.action||'')}</span>
+      ${h.demand_title?`<div style="font-size:10px;color:var(--t3);margin-top:1px">${IC.clipboard} ${esc(h.demand_title)}</div>`:''}
+      <div style="font-size:9px;color:var(--t3);font-family:'JetBrains Mono',monospace">${fmtDT(h.created_at)}</div>
+    </div></div>`;
+});
+}else html+=`<div class="empty" style="padding:30px"><p>Nenhuma atividade</p></div>`;
+html+=`</div></div>`;
+
 html+='</div>';
 const _mb=document.getElementById('det-body');if(_mb)_mb.innerHTML=html;
+const footer=document.getElementById('det-footer');
+if(footer)footer.innerHTML=`<button class="btn btn-g" onclick="closeM('m-detail')">Fechar</button>${IS_ADMIN?` <button class="btn btn-p btn-sm" onclick="closeM('m-detail');editSystem(${d.id})">${IC.edit} Editar Sistema</button>`:''}`;
+const titleEl=document.getElementById('det-title');
+if(titleEl)titleEl.textContent=d.name;
 openM('m-detail');
 }
 
@@ -2205,7 +2456,7 @@ const total=st.total||0;
 const concluidas=st.concluidas||0;
 const ativas=st.ativas||0;
 const pctConc=total?Math.round(concluidas/total*100):0;
-const avgDays=st.avg_completion_days?parseFloat(st.avg_completion_days).toFixed(1):'—';
+const _avgRaw=st.avg_completion_days?parseFloat(st.avg_completion_days):null;const avgDays=_avgRaw?(_avgRaw*24*60<60?Math.round(_avgRaw*24*60)+'min':_avgRaw*24<24?Math.round(_avgRaw*24)+'h '+Math.round((_avgRaw*24%1)*60)+'m':_avgRaw.toFixed(1)+'d'):'—';
 
 // Role badges
 const roleLabels={admin:'Administrador',dev:'Desenvolvedor',diretor:'Diretor',presidencia:'Presidência',usuario:'Usuário'};
@@ -2241,7 +2492,6 @@ html+=`<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
   </div>
   <div style="display:flex;gap:6px;flex-shrink:0">
     ${IS_ADMIN?`<button class="btn btn-g btn-sm" onclick="closeM('m-detail');editUser(${d.id})">${IC.edit} Editar</button>`:''}
-    <button class="btn btn-g btn-sm" onclick="closeM('m-detail')">${IC.x}</button>
   </div>
 </div>`;
 
@@ -2251,7 +2501,7 @@ html+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90p
   <div class="sc green"><div class="sc-l">Concluídas</div><div class="sc-v">${concluidas}</div></div>
   <div class="sc" style="border-left:3px solid var(--warn)"><div class="sc-l">Ativas</div><div class="sc-v">${ativas}</div></div>
   <div class="sc purple"><div class="sc-l">Conclusão</div><div class="sc-v">${pctConc}%</div></div>
-  <div class="sc" style="border-left:3px solid #f59e0b"><div class="sc-l">Média Dias</div><div class="sc-v">${avgDays}</div></div>
+  <div class="sc" style="border-left:3px solid #f59e0b"><div class="sc-l">Tempo Médio</div><div class="sc-v">${avgDays==='—'?'—':avgDays<60?avgDays+'min':Math.floor(avgDays/60)+'h '+avgDays%60+'m'}</div></div>
   <div class="sc" style="border-left:3px solid #8b5cf6"><div class="sc-l">Sistemas</div><div class="sc-v">${sistemas.length}</div></div>
   
   <div class="sc" style="border-left:3px solid #10b981"><div class="sc-l">Aceites</div><div class="sc-v">${acceptances.Aceita||0}/${total}</div></div>
@@ -2306,6 +2556,38 @@ if(monthly.length>1){
   html+=`</div></div>`;
 }
 
+// ── TRABALHANDO AGORA ──
+const working=demands.filter(dm=>['Em Andamento','Em Revisão'].includes(dm.status));
+if(working.length){
+html+=`<div style="margin-bottom:16px;background:var(--bg4);border:1px solid var(--bdr);border-radius:12px;overflow:hidden">
+<div style="padding:10px 14px;background:var(--accg);border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+  <span style="font-size:12px;font-weight:700;color:var(--acc)">Trabalhando Agora</span>
+  <span style="font-size:10px;color:var(--t3);margin-left:auto">${working.length} demanda${working.length>1?'s':''}</span>
+</div>`;
+working.forEach(dm=>{
+  const dmDevs2=(dm.devs||[]).map(dv=>av(dv.name,dv.avatar_color,18,dv.avatar_file,dv.role)).join('');
+  let dlInfo='';
+  if(dm.deadline){const diff=Math.ceil((new Date(dm.deadline+'T12:00:00')-Date.now())/86400000);if(diff<0)dlInfo=`<span style="color:var(--err);font-weight:700">${Math.abs(diff)}d atrasado</span>`;else if(diff<=3)dlInfo=`<span style="color:var(--err)">${diff}d restantes</span>`;else if(diff<=7)dlInfo=`<span style="color:var(--warn)">${diff}d restantes</span>`;else dlInfo=`<span>${diff}d restantes</span>`}
+  let timeWorking='';
+  if(dm.start_date){const s=new Date(dm.start_date),diff=Math.abs(Date.now()-s),days=Math.floor(diff/864e5),hrs=Math.floor((diff%864e5)/36e5);timeWorking=days>0?days+'d '+hrs+'h':hrs+'h'}
+  html+=`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .15s" onclick="closeM('m-detail');setTimeout(()=>openDetail(${dm.id}),200)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='none'">
+    <div style="width:8px;height:8px;border-radius:50%;background:${dm.status==='Em Revisão'?'var(--warn)':'var(--acc)'};flex-shrink:0;animation:${dm.status==='Em Andamento'?'pulse 2s infinite':'none'}"></div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(dm.title)}</div>
+      <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap;align-items:center;font-size:10px;color:var(--t3)">
+        <span class="badge ${sClass(dm.status)}" style="font-size:9px">${dm.status}</span>
+        <span class="badge ${pClass(dm.priority)}" style="font-size:9px">${dm.priority}</span>
+        ${dm.system_name?`<span>${esc(dm.system_name)}</span>`:''}
+        ${timeWorking?`<span>⏱ ${timeWorking}</span>`:''}
+        ${dlInfo?`<span>📅 ${dlInfo}</span>`:''}
+      </div>
+    </div>
+    <div style="display:flex;gap:2px;flex-shrink:0">${dmDevs2}</div>
+  </div>`;
+});
+html+=`</div>`;
+}
 // ── TABS ──
 html+=`<div style="display:flex;gap:0;border-bottom:2px solid var(--bdr);margin-bottom:16px">
   <button class="sys-tab active" onclick="devTab(this,'dev-demands')" style="padding:8px 16px;font-size:12px;font-weight:600;border:none;background:none;color:var(--acc);border-bottom:2px solid var(--acc);margin-bottom:-2px;cursor:pointer">${IC.clipboard||'📋'} Demandas (${demands.length})</button>
@@ -2342,8 +2624,7 @@ if(demands.length){
       <td style="font-family:'JetBrains Mono',monospace;color:var(--t3);font-size:10px">#${dm.id}</td>
       <td style="font-weight:600;font-size:12px">${esc(dm.title)}</td>
       <td style="font-size:10px;color:var(--t2)">${dm.system_name?esc(dm.system_name):'—'}</td>
-      <td><span class="badge ${pClass(dm.priority)}">${dm.priority}</span></td>
-      <td><span class="badge ${sClass(dm.status)}">${dm.status}</span></td>
+      <td><span class="badge ${pClass(dm.priority)}">${dm.priority}</span></td><td><span class="badge ${sClass(dm.status)}">${dm.status}</span></td>
       <td>${accBadge}</td>
       <td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${deadlineHtml}</td>
       <td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${fmtDT(dm.created_at)}</td>
