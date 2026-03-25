@@ -2344,7 +2344,7 @@ function openMultiAuthModal(data) {
     mo = document.createElement('div');
     mo.id = 'm-multi-auth';
     mo.className = 'modal-o';
-    mo.innerHTML = '<div class="modal" style="max-width:520px"><div class="modal-h"><h3 id="mma-title">Autorização Necessária</h3><button class="modal-x" onclick="closeM(\'m-multi-auth\')">×</button></div><div class="modal-b" id="mma-body"></div><div class="modal-f" id="mma-foot"></div></div>';
+    mo.innerHTML = '<div class="modal" style="max-width:520px"><div class="modal-h"><h3 id="mma-title">Autorização Necessária</h3><button class="modal-x" onclick="closeM('m-multi-auth')">×</button></div><div class="modal-b" id="mma-body"></div><div class="modal-f" id="mma-foot"></div></div>';
     document.body.appendChild(mo);
   }
 
@@ -2368,7 +2368,7 @@ function openMultiAuthModal(data) {
     '<textarea id="mma-justification" rows="3" placeholder="Explique por que precisa trabalhar em duas demandas simultaneamente..." style="font-size:12px"></textarea></div>';
 
   document.getElementById('mma-foot').innerHTML =
-    '<button class="btn btn-g" onclick="closeM(\'m-multi-auth\')">Cancelar</button>' +
+    '<button class="btn btn-g" onclick="closeM('m-multi-auth')">Cancelar</button>' +
     '<button class="btn btn-p" onclick="submitMultiAuthRequest(' + data.demand_id + ')">Solicitar Autorização</button>';
 
   openM('m-multi-auth');
@@ -2405,7 +2405,7 @@ function openMultiDemandReview(requestId, userName, demandTitle, justification, 
     mo = document.createElement('div');
     mo.id = 'm-multi-review';
     mo.className = 'modal-o';
-    mo.innerHTML = '<div class="modal" style="max-width:500px"><div class="modal-h"><h3>Autorizar Demanda Simultânea</h3><button class="modal-x" onclick="closeM(\'m-multi-review\')">×</button></div><div class="modal-b" id="mmr-body"></div><div class="modal-f" id="mmr-foot"></div></div>';
+    mo.innerHTML = '<div class="modal" style="max-width:500px"><div class="modal-h"><h3>Autorizar Demanda Simultânea</h3><button class="modal-x" onclick="closeM('m-multi-review')">×</button></div><div class="modal-b" id="mmr-body"></div><div class="modal-f" id="mmr-foot"></div></div>';
     document.body.appendChild(mo);
   }
 
@@ -2423,8 +2423,8 @@ function openMultiDemandReview(requestId, userName, demandTitle, justification, 
     '<div class="fg"><label>Observações (opcional)</label><textarea id="mmr-notes" rows="2" placeholder="Motivo da decisão..." style="font-size:12px"></textarea></div>';
 
   document.getElementById('mmr-foot').innerHTML =
-    '<button class="btn btn-d" onclick="reviewMultiDemand(' + requestId + ',\'Rejeitada\')">Rejeitar</button>' +
-    '<button class="btn btn-ok" onclick="reviewMultiDemand(' + requestId + ',\'Aprovada\')">' + IC.check + ' Autorizar</button>';
+    '<button class="btn btn-d" onclick="reviewMultiDemand(' + requestId + ','Rejeitada')">Rejeitar</button>' +
+    '<button class="btn btn-ok" onclick="reviewMultiDemand(' + requestId + ','Aprovada')">' + IC.check + ' Autorizar</button>';
 
   openM('m-multi-review');
 }

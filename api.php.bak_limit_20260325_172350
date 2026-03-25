@@ -37,41 +37,17 @@ $db=getDB();
 
 
 // Verificar limite de demandas em andamento por dev
-function checkDevWorkLimit($db, $userId, $demandId=null) {
+function checkDevWorkLimit($db,$userId,$demandId=null){
+    // Admin pode liberar via permissao
+    $perm=$db->prepare("SELECT granted FROM user_permissions WHERE user_id=? AND permission='multi_demand'");
+    $perm->execute([$userId]);$canMulti=$perm->fetchColumn();
+    if($canMulti)return true;
     // Contar demandas em andamento do dev (excluindo a atual)
-    $sql = "SELECT d.id, d.title FROM devs_demandas dd 
-            JOIN demandas d ON d.id = dd.demand_id 
-            WHERE dd.user_id = ? AND d.status = 'Em Andamento'";
-    $params = [$userId];
-    if ($demandId) {
-        $sql .= " AND d.id != ?";
-        $params[] = $demandId;
-    }
-    $s = $db->prepare($sql);
-    $s->execute($params);
-    $activeList = $s->fetchAll(PDO::FETCH_ASSOC);
-    $count = count($activeList);
-    
-    if ($count === 0) return ['allowed' => true];
-    
-    // Verificar se tem autorização aprovada para esta demanda específica
-    if ($demandId) {
-        $chk = $db->prepare("SELECT status FROM multi_demand_requests WHERE user_id = ? AND demand_id = ? AND status = 'Aprovada'");
-        $chk->execute([$userId, $demandId]);
-        if ($chk->fetch()) return ['allowed' => true];
-    }
-    
-    // Admin pode sempre (tem todas as permissões)
-    $role = $db->prepare("SELECT role FROM usuarios WHERE id = ?");
-    $role->execute([$userId]);
-    $userRole = $role->fetchColumn() ?: '';
-    if (strpos($userRole, 'admin') !== false) return ['allowed' => true];
-    
-    return [
-        'allowed' => false,
-        'count' => $count,
-        'active_demands' => $activeList
-    ];
+    $sql="SELECT COUNT(*) FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Em Andamento'";
+    $params=[$userId];
+    if($demandId){$sql.=" AND d.id!=?";$params[]=$demandId;}
+    $s=$db->prepare($sql);$s->execute($params);
+    return $s->fetchColumn()==0;
 }
 
 // Auto-migrate missing columns (runs once per session)
@@ -112,21 +88,6 @@ if(empty($_SESSION['_migrated'])){
     try{$db->exec("ALTER TABLE documentations ADD COLUMN password_plain VARCHAR(255) DEFAULT NULL");}catch(\Exception $e){}
     // Add department_id to users if missing
     try{$db->exec("ALTER TABLE users ADD COLUMN department_id INT DEFAULT NULL");}catch(\Exception $e){}
-
-    
-    // Tabela para solicitações de múltiplas demandas simultâneas
-    try{$db->exec("CREATE TABLE IF NOT EXISTS multi_demand_requests (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        demand_id INT NOT NULL,
-        justification TEXT NOT NULL,
-        status ENUM('Pendente','Aprovada','Rejeitada') DEFAULT 'Pendente',
-        reviewed_by INT DEFAULT NULL,
-        review_notes TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        reviewed_at DATETIME DEFAULT NULL,
-        UNIQUE KEY uq_user_demand (user_id, demand_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");}catch(Exception $e){}
 
     $_SESSION["_migrated"]=1;
     // Complexidade e métricas
@@ -423,20 +384,6 @@ if($act==='demand_accept'&&isset($_GET['id'])){
 
     if($acceptance==='Aceita'){
         if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
-            // Verificar limite de demandas simultâneas
-            $wlCheck = checkDevWorkLimit($db, $UID, $id);
-            if (!$wlCheck['allowed']) {
-                // Reverter aceite — precisa de autorização
-                $db->prepare("UPDATE devs_demandas SET acceptance='Pendente' WHERE demand_id=? AND user_id=?")->execute([$id, $UID]);
-                jsonR([
-                    'needs_multi_auth' => true,
-                    'active_count' => $wlCheck['count'],
-                    'active_demands' => $wlCheck['active_demands'],
-                    'demand_id' => $id,
-                    'demand_title' => $demTitle,
-                    'message' => 'Você já tem '.$wlCheck['count'].' demanda(s) em andamento. Justifique para solicitar autorização.'
-                ]);
-            }
             $db->prepare("UPDATE demandas SET status='Em Andamento', started_at=COALESCE(started_at,NOW()) WHERE id=?")->execute([$id]);
             $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
         }
@@ -467,18 +414,6 @@ if($act==='demand_claim'&&isset($_GET['id'])){
             $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Dev aceitou','Aceita')")->execute([$id,$UID]);
         }
         if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
-            // Verificar limite de demandas simultâneas
-            $wlCheck = checkDevWorkLimit($db, $UID, $id);
-            if (!$wlCheck['allowed'] && !($d['multi_authorized']??false)) {
-                jsonR([
-                    'needs_multi_auth' => true,
-                    'active_count' => $wlCheck['count'],
-                    'active_demands' => $wlCheck['active_demands'],
-                    'demand_id' => $id,
-                    'demand_title' => $demRow['title'],
-                    'message' => 'Você já tem '.$wlCheck['count'].' demanda(s) em andamento. Justifique para solicitar autorização.'
-                ]);
-            }
             $db->prepare("UPDATE demandas SET status='Em Andamento', started_at=COALESCE(started_at,NOW()) WHERE id=?")->execute([$id]);
             $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
             $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
@@ -2125,82 +2060,6 @@ if($act==='ponto_history'){_ept($db);$u2=isset($_GET['user_id'])&&$IS_ADMIN?(int
 
 if($act==='ponto_folga'){_ept($db);if($method==='GET'){$fr=$_GET['from']??date('Y-m-01');$to=$_GET['to']??date('Y-m-d');$q=$db->prepare("SELECT f.*,u.name AS user_name,c.name AS created_by_name FROM ponto_folgas f JOIN usuarios u ON f.user_id=u.id JOIN usuarios c ON f.created_by=c.id WHERE f.date BETWEEN ? AND ? ORDER BY f.date DESC,u.name ASC");$q->execute([$fr,$to]);jsonR($q->fetchAll(PDO::FETCH_ASSOC));}if($method==='POST'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);$b=json_decode(file_get_contents('php://input'),true)??[];$u3=(int)($b['user_id']??0);$dt=$b['date']??'';$tp=$b['tipo']??'Folga';$ob=$b['obs']??'';if(!$u3||!$dt)jsonR(['error'=>'Obrigatórios: user_id e date'],400);$db->prepare("INSERT INTO ponto_folgas(user_id,date,tipo,obs,created_by)VALUES(?,?,?,?,?)ON DUPLICATE KEY UPDATE tipo=VALUES(tipo),obs=VALUES(obs),created_by=VALUES(created_by)")->execute([$u3,$dt,$tp,$ob,$UID]);jsonR(['success'=>true]);}if($method==='DELETE'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);$id2=(int)($_GET['id']??0);if(!$id2)jsonR(['error'=>'id obrigatório'],400);$db->prepare("DELETE FROM ponto_folgas WHERE id=?")->execute([$id2]);jsonR(['success'=>true]);}jsonR(['error'=>'Método não suportado'],405);}
 if($act==='ponto_edit'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);_ept($db);$b=json_decode(file_get_contents('php://input'),true)??[];$id=(int)($b['id']??0);if(!$id)jsonR(['error'=>'id obrigatório'],400);$db->prepare("UPDATE ponto_sessions SET clock_in=COALESCE(?,clock_in),clock_out=? WHERE id=?")->execute([$b['clock_in']??null,$b['clock_out']??null,$id]);jsonR(['success'=>true]);}
-
-
-// ===== MULTI-DEMAND AUTHORIZATION =====
-if($act==='multi_demand_request'&&$method==='POST'){
-    $d=json_decode(file_get_contents('php://input'),true);
-    $demandId=(int)($d['demand_id']??0);
-    $justification=trim($d['justification']??'');
-    if(!$demandId||!$justification) jsonR(['error'=>'Demanda e justificativa obrigatórios'],400);
-    
-    $dem=$db->prepare("SELECT title FROM demandas WHERE id=?");$dem->execute([$demandId]);$demTitle=$dem->fetchColumn();
-    
-    $db->prepare("INSERT INTO multi_demand_requests (user_id,demand_id,justification) VALUES (?,?,?) ON DUPLICATE KEY UPDATE justification=VALUES(justification),status='Pendente',reviewed_by=NULL,reviewed_at=NULL")
-        ->execute([$UID,$demandId,$justification]);
-    
-    // Notificar admins
-    $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%') AND active=1")->fetchAll();
-    foreach($admins as $a){
-        if($a['id']!=$UID){
-            notify($a['id'],'demand_new',"{$ME['name']} solicita autorização para demanda simultânea","Demanda: {$demTitle} — Justificativa: {$justification}","demand:{$demandId}",'demand',$demandId);
-            sendPushToUser($db,(int)$a['id'],['title'=>'⚠️ Autorização Necessária','message'=>"{$ME['name']} quer iniciar demanda simultânea: {$demTitle}",'url'=>'/index.php#demandas']);
-        }
-    }
-    logActivity($UID,"Solicitou demanda simultânea: {$demTitle}",'demand',$demandId);
-    jsonR(['success'=>true,'message'=>'Solicitação enviada! Aguarde aprovação do admin.']);
-}
-
-if($act==='multi_demand_review'&&$method==='POST'){
-    if(!$IS_ADMIN) jsonR(['error'=>'Apenas admin pode aprovar'],403);
-    $d=json_decode(file_get_contents('php://input'),true);
-    $requestId=(int)($d['request_id']??0);
-    $status=$d['status']??'';
-    $notes=trim($d['review_notes']??'');
-    if(!$requestId||!in_array($status,['Aprovada','Rejeitada'])) jsonR(['error'=>'Dados inválidos'],400);
-    
-    $req=$db->prepare("SELECT mr.*,u.name as user_name,d.title as demand_title FROM multi_demand_requests mr JOIN usuarios u ON mr.user_id=u.id JOIN demandas d ON mr.demand_id=d.id WHERE mr.id=?");
-    $req->execute([$requestId]);$reqRow=$req->fetch();
-    if(!$reqRow) jsonR(['error'=>'Solicitação não encontrada'],404);
-    
-    $db->prepare("UPDATE multi_demand_requests SET status=?,reviewed_by=?,review_notes=?,reviewed_at=NOW() WHERE id=?")
-        ->execute([$status,$UID,$notes,$requestId]);
-    
-    $msg=$status==='Aprovada'
-        ?"Autorização APROVADA para demanda simultânea: {$reqRow['demand_title']}"
-        :"Autorização REJEITADA para demanda simultânea: {$reqRow['demand_title']}".($notes?" — {$notes}":'');
-    
-    notify($reqRow['user_id'],$status==='Aprovada'?'demand_status':'demand_status',$msg,$notes,"demand:{$reqRow['demand_id']}",'demand',$reqRow['demand_id']);
-    sendPushToUser($db,(int)$reqRow['user_id'],['title'=>$status==='Aprovada'?'✅ Autorização Aprovada':'❌ Autorização Rejeitada','message'=>$msg,'url'=>'/index.php#demandas']);
-    
-    // Se aprovada, automaticamente aceitar e iniciar a demanda
-    if($status==='Aprovada'){
-        $db->prepare("UPDATE devs_demandas SET acceptance='Aceita',assigned_at=NOW() WHERE demand_id=? AND user_id=?")->execute([$reqRow['demand_id'],$reqRow['user_id']]);
-        $curStatus=$db->prepare("SELECT status FROM demandas WHERE id=?");$curStatus->execute([$reqRow['demand_id']]);$cs=$curStatus->fetchColumn();
-        if(in_array($cs,['Aberta','Aguardando Aceite'])){
-            $db->prepare("UPDATE demandas SET status='Em Andamento',started_at=COALESCE(started_at,NOW()) WHERE id=?")->execute([$reqRow['demand_id']]);
-            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value,details) VALUES (?,?,'Status alterado','Em Andamento','Autorizado para demanda simultânea')")->execute([$reqRow['demand_id'],$reqRow['user_id']]);
-        }
-    }
-    
-    logActivity($UID,"Multi-demanda {$status}: {$reqRow['demand_title']} para {$reqRow['user_name']}",'demand',$reqRow['demand_id']);
-    jsonR(['success'=>true]);
-}
-
-if($act==='multi_demand_pending'){
-    if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
-    $s=$db->prepare("SELECT mr.*,u.name as user_name,u.avatar_color,u.avatar_file,d.title as demand_title,d.priority,d.system_id,s.name as system_name,
-        (SELECT COUNT(*) FROM devs_demandas dd2 JOIN demandas d2 ON dd2.demand_id=d2.id WHERE dd2.user_id=mr.user_id AND d2.status='Em Andamento') as current_active
-        FROM multi_demand_requests mr 
-        JOIN usuarios u ON mr.user_id=u.id 
-        JOIN demandas d ON mr.demand_id=d.id 
-        LEFT JOIN sistemas s ON d.system_id=s.id
-        WHERE mr.status='Pendente' 
-        ORDER BY mr.created_at DESC");
-    $s->execute();
-    jsonR($s->fetchAll());
-}
-
 
 // ===== 404 FALLBACK =====
 jsonR(['error'=>'Endpoint não encontrado'],404);

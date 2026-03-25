@@ -37,41 +37,17 @@ $db=getDB();
 
 
 // Verificar limite de demandas em andamento por dev
-function checkDevWorkLimit($db, $userId, $demandId=null) {
+function checkDevWorkLimit($db,$userId,$demandId=null){
+    // Admin pode liberar via permissao
+    $perm=$db->prepare("SELECT granted FROM user_permissions WHERE user_id=? AND permission='multi_demand'");
+    $perm->execute([$userId]);$canMulti=$perm->fetchColumn();
+    if($canMulti)return true;
     // Contar demandas em andamento do dev (excluindo a atual)
-    $sql = "SELECT d.id, d.title FROM devs_demandas dd 
-            JOIN demandas d ON d.id = dd.demand_id 
-            WHERE dd.user_id = ? AND d.status = 'Em Andamento'";
-    $params = [$userId];
-    if ($demandId) {
-        $sql .= " AND d.id != ?";
-        $params[] = $demandId;
-    }
-    $s = $db->prepare($sql);
-    $s->execute($params);
-    $activeList = $s->fetchAll(PDO::FETCH_ASSOC);
-    $count = count($activeList);
-    
-    if ($count === 0) return ['allowed' => true];
-    
-    // Verificar se tem autorização aprovada para esta demanda específica
-    if ($demandId) {
-        $chk = $db->prepare("SELECT status FROM multi_demand_requests WHERE user_id = ? AND demand_id = ? AND status = 'Aprovada'");
-        $chk->execute([$userId, $demandId]);
-        if ($chk->fetch()) return ['allowed' => true];
-    }
-    
-    // Admin pode sempre (tem todas as permissões)
-    $role = $db->prepare("SELECT role FROM usuarios WHERE id = ?");
-    $role->execute([$userId]);
-    $userRole = $role->fetchColumn() ?: '';
-    if (strpos($userRole, 'admin') !== false) return ['allowed' => true];
-    
-    return [
-        'allowed' => false,
-        'count' => $count,
-        'active_demands' => $activeList
-    ];
+    $sql="SELECT COUNT(*) FROM devs_demandas dd JOIN demandas d ON d.id=dd.demand_id WHERE dd.user_id=? AND d.status='Em Andamento'";
+    $params=[$userId];
+    if($demandId){$sql.=" AND d.id!=?";$params[]=$demandId;}
+    $s=$db->prepare($sql);$s->execute($params);
+    return $s->fetchColumn()==0;
 }
 
 // Auto-migrate missing columns (runs once per session)
@@ -112,21 +88,6 @@ if(empty($_SESSION['_migrated'])){
     try{$db->exec("ALTER TABLE documentations ADD COLUMN password_plain VARCHAR(255) DEFAULT NULL");}catch(\Exception $e){}
     // Add department_id to users if missing
     try{$db->exec("ALTER TABLE users ADD COLUMN department_id INT DEFAULT NULL");}catch(\Exception $e){}
-
-    
-    // Tabela para solicitações de múltiplas demandas simultâneas
-    try{$db->exec("CREATE TABLE IF NOT EXISTS multi_demand_requests (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        demand_id INT NOT NULL,
-        justification TEXT NOT NULL,
-        status ENUM('Pendente','Aprovada','Rejeitada') DEFAULT 'Pendente',
-        reviewed_by INT DEFAULT NULL,
-        review_notes TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        reviewed_at DATETIME DEFAULT NULL,
-        UNIQUE KEY uq_user_demand (user_id, demand_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");}catch(Exception $e){}
 
     $_SESSION["_migrated"]=1;
     // Complexidade e métricas
@@ -423,20 +384,6 @@ if($act==='demand_accept'&&isset($_GET['id'])){
 
     if($acceptance==='Aceita'){
         if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
-            // Verificar limite de demandas simultâneas
-            $wlCheck = checkDevWorkLimit($db, $UID, $id);
-            if (!$wlCheck['allowed']) {
-                // Reverter aceite — precisa de autorização
-                $db->prepare("UPDATE devs_demandas SET acceptance='Pendente' WHERE demand_id=? AND user_id=?")->execute([$id, $UID]);
-                jsonR([
-                    'needs_multi_auth' => true,
-                    'active_count' => $wlCheck['count'],
-                    'active_demands' => $wlCheck['active_demands'],
-                    'demand_id' => $id,
-                    'demand_title' => $demTitle,
-                    'message' => 'Você já tem '.$wlCheck['count'].' demanda(s) em andamento. Justifique para solicitar autorização.'
-                ]);
-            }
             $db->prepare("UPDATE demandas SET status='Em Andamento', started_at=COALESCE(started_at,NOW()) WHERE id=?")->execute([$id]);
             $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
         }
@@ -467,18 +414,6 @@ if($act==='demand_claim'&&isset($_GET['id'])){
             $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Dev aceitou','Aceita')")->execute([$id,$UID]);
         }
         if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
-            // Verificar limite de demandas simultâneas
-            $wlCheck = checkDevWorkLimit($db, $UID, $id);
-            if (!$wlCheck['allowed'] && !($d['multi_authorized']??false)) {
-                jsonR([
-                    'needs_multi_auth' => true,
-                    'active_count' => $wlCheck['count'],
-                    'active_demands' => $wlCheck['active_demands'],
-                    'demand_id' => $id,
-                    'demand_title' => $demRow['title'],
-                    'message' => 'Você já tem '.$wlCheck['count'].' demanda(s) em andamento. Justifique para solicitar autorização.'
-                ]);
-            }
             $db->prepare("UPDATE demandas SET status='Em Andamento', started_at=COALESCE(started_at,NOW()) WHERE id=?")->execute([$id]);
             $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
             $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
@@ -1295,27 +1230,6 @@ if($act==='user_stats'&&isset($_GET['id'])){
     $s->execute([$tid]); $st['monthly']=$s->fetchAll();
     jsonR($st);
 }
-// ===== TEAM REALTIME (Dashboard) =====
-if($act==='team_realtime'){
-    $s=$db->prepare("SELECT u.id, u.name, u.avatar_color, u.avatar_file, u.role, u.last_login,
-        COUNT(DISTINCT CASE WHEN d.status='Aberta' THEN d.id END) as abertas,
-        COUNT(DISTINCT CASE WHEN d.status='Aguardando Aceite' THEN d.id END) as aguardando,
-        COUNT(DISTINCT CASE WHEN d.status='Em Andamento' THEN d.id END) as andamento,
-        COUNT(DISTINCT CASE WHEN d.status='Em Revisão' THEN d.id END) as revisao,
-        COUNT(DISTINCT CASE WHEN d.status='Concluída' THEN d.id END) as concluidas,
-        COUNT(DISTINCT CASE WHEN d.status NOT IN('Concluída','Cancelada') THEN d.id END) as ativas,
-        (SELECT GROUP_CONCAT(DISTINCT s2.name ORDER BY s2.name SEPARATOR ', ')
-         FROM devs_sistemas ds JOIN sistemas s2 ON ds.system_id=s2.id WHERE ds.user_id=u.id) as sistemas
-    FROM usuarios u
-    LEFT JOIN devs_demandas dd ON u.id=dd.user_id
-    LEFT JOIN demandas d ON dd.demand_id=d.id
-    WHERE u.active=1 AND u.role LIKE '%dev%'
-    GROUP BY u.id
-    ORDER BY ativas DESC, u.name");
-    $s->execute();
-    jsonR($s->fetchAll());
-}
-
 if($act==='dev_list'){
     $s=$db->query("SELECT id,name,avatar_color,avatar_file,role,work_hours FROM usuarios WHERE active=1 AND role LIKE '%dev%' ORDER BY name");
     jsonR($s->fetchAll());
@@ -2036,171 +1950,16 @@ if($act==='user_permissions_reset'&&$method==='POST'){
 // ===== PONTO DIGITAL =====
 function _ept($db){static $x=false;if($x)return;$x=true;$db->exec("CREATE TABLE IF NOT EXISTS ponto_sessions(id INT AUTO_INCREMENT PRIMARY KEY,user_id INT NOT NULL,date DATE NOT NULL,clock_in DATETIME NOT NULL,clock_out DATETIME DEFAULT NULL,INDEX idx_ud(user_id,date))ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");try{$db->exec("ALTER TABLE usuarios ADD COLUMN jornada_hours TINYINT UNSIGNED NOT NULL DEFAULT 8");}catch(Exception $ex){}$db->exec("CREATE TABLE IF NOT EXISTS ponto_folgas(id INT AUTO_INCREMENT PRIMARY KEY,user_id INT NOT NULL,date DATE NOT NULL,tipo VARCHAR(50) NOT NULL DEFAULT 'Folga',obs TEXT,created_by INT NOT NULL,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uq_ud(user_id,date))ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");}
 
-// Auto-insert lunch break 12:00-13:00 if user forgot
-function autoLunchBreak($db, $userId, $date) {
-    $now = new DateTime();
-    $today = $now->format('Y-m-d');
-    
-    // Só aplica para o dia de hoje e após 15:00
-    if ($date !== $today) return;
-    if ((int)$now->format('H') < 15) return;
-    
-    // Verificar se já tem uma pausa que cobre 12:00-13:00
-    // (ou seja, alguma sessão termina entre 11:30-12:30 E outra começa entre 12:30-13:30)
-    $lunchStart = $date . ' 12:00:00';
-    $lunchEnd = $date . ' 13:00:00';
-    
-    // Buscar sessões do dia
-    $st = $db->prepare("SELECT id, clock_in, clock_out FROM ponto_sessions WHERE user_id = ? AND date = ? ORDER BY clock_in ASC");
-    $st->execute([$userId, $date]);
-    $sessions = $st->fetchAll(PDO::FETCH_ASSOC);
-    
-    if (empty($sessions)) return;
-    
-    // Verificar se já existe uma gap que cobre ~12:00-13:00
-    for ($i = 0; $i < count($sessions) - 1; $i++) {
-        $curOut = $sessions[$i]['clock_out'];
-        $nextIn = $sessions[$i + 1]['clock_in'];
-        if ($curOut && $nextIn) {
-            $outTime = strtotime($curOut);
-            $inTime = strtotime($nextIn);
-            // Se existe um gap entre 11:30 e 13:30 de pelo menos 30min, consideramos como almoço já feito
-            $gapStart = strtotime($date . ' 11:30:00');
-            $gapEnd = strtotime($date . ' 13:30:00');
-            if ($outTime >= $gapStart && $outTime <= $gapEnd && $inTime >= $gapStart && $inTime <= $gapEnd) {
-                $gapMinutes = ($inTime - $outTime) / 60;
-                if ($gapMinutes >= 30) return; // Já tem pausa de almoço
-            }
-        }
-    }
-    
-    // Verificar se alguma sessão CRUZA o período 12:00-13:00 continuamente
-    $lunchStartTs = strtotime($lunchStart);
-    $lunchEndTs = strtotime($lunchEnd);
-    
-    foreach ($sessions as $sess) {
-        $inTs = strtotime($sess['clock_in']);
-        $outTs = $sess['clock_out'] ? strtotime($sess['clock_out']) : time();
-        
-        // Sessão começou antes das 12:00 e termina (ou ainda ativa) depois das 13:00
-        if ($inTs < $lunchStartTs && $outTs > $lunchEndTs) {
-            // Esta sessão cruza 12:00-13:00 sem pausa — inserir almoço automático
-            $sessId = $sess['id'];
-            $wasActive = empty($sess['clock_out']); // sessão ainda ativa?
-            
-            // 1. Fechar sessão original às 12:00
-            $db->prepare("UPDATE ponto_sessions SET clock_out = ? WHERE id = ?")
-                ->execute([$lunchStart, $sessId]);
-            
-            // 2. Criar nova sessão começando às 13:00
-            if ($wasActive) {
-                // Sessão estava ativa — nova sessão às 13:00 sem clock_out (continua ativa)
-                $db->prepare("INSERT INTO ponto_sessions (user_id, date, clock_in) VALUES (?, ?, ?)")
-                    ->execute([$userId, $date, $lunchEnd]);
-            } else {
-                // Sessão já estava fechada — nova sessão 13:00 até o clock_out original
-                $db->prepare("INSERT INTO ponto_sessions (user_id, date, clock_in, clock_out) VALUES (?, ?, ?, ?)")
-                    ->execute([$userId, $date, $lunchEnd, $sess['clock_out']]);
-            }
-            
-            // Log
-            try {
-                $db->prepare("INSERT INTO registro_atividades (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)")
-                    ->execute([$userId, 'Almoço automático 12:00-13:00', 'ponto', $sessId, 'Sessão dividida automaticamente (esqueceu de pausar)']);
-            } catch (Exception $e) {}
-            
-            return; // Só precisa tratar uma sessão
-        }
-    }
-}
+if($act==='ponto_status'){_ept($db);$t=date('Y-m-d');$a=$db->prepare("SELECT id,clock_in FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NULL ORDER BY id DESC LIMIT 1");$a->execute([$UID,$t]);$as=$a->fetch();$c=$db->prepare("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,clock_in,clock_out)),0)s FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NOT NULL");$c->execute([$UID,$t]);$cs=(int)$c->fetch()['s'];$j=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,8)h FROM usuarios WHERE id=?");$j->execute([$UID]);$jh=(int)($j->fetch()['h']??8);$wh=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,6)h FROM usuarios WHERE id=?");$wh->execute([$UID]);$wk=(int)($wh->fetch()['h']??6);jsonR(['date'=>$t,'user_id'=>$UID,'active'=>!!$as,'status'=>$as?'Ativo':'Pausado','active_since'=>$as?$as['clock_in']:null,'total_seconds'=>$cs,'worked_seconds'=>$cs,'clock_in'=>$as?$as['clock_in']:null,'work_hours'=>$wk,'jornada_hours'=>$jh]);}
 
-
-if($act==='ponto_status'){_ept($db);$t=date('Y-m-d');autoLunchBreak($db,$UID,$t);$a=$db->prepare("SELECT id,clock_in FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NULL ORDER BY id DESC LIMIT 1");$a->execute([$UID,$t]);$as=$a->fetch();$c=$db->prepare("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,clock_in,clock_out)),0)s FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NOT NULL");$c->execute([$UID,$t]);$cs=(int)$c->fetch()['s'];$j=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,8)h FROM usuarios WHERE id=?");$j->execute([$UID]);$jh=(int)($j->fetch()['h']??8);$wh=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,6)h FROM usuarios WHERE id=?");$wh->execute([$UID]);$wk=(int)($wh->fetch()['h']??6);jsonR(['date'=>$t,'user_id'=>$UID,'active'=>!!$as,'status'=>$as?'Ativo':'Pausado','active_since'=>$as?$as['clock_in']:null,'total_seconds'=>$cs,'worked_seconds'=>$cs,'clock_in'=>$as?$as['clock_in']:null,'work_hours'=>$wk,'jornada_hours'=>$jh]);}
-
-if($act==='ponto_today'){_ept($db);$t=date('Y-m-d');autoLunchBreak($db,$UID,$t);$a=$db->prepare("SELECT id,clock_in FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NULL ORDER BY id DESC LIMIT 1");$a->execute([$UID,$t]);$as=$a->fetch();$c=$db->prepare("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,clock_in,clock_out)),0)s FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NOT NULL");$c->execute([$UID,$t]);$cs=(int)$c->fetch()['s'];$j=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,8)h FROM usuarios WHERE id=?");$j->execute([$UID]);$jh=(int)($j->fetch()['h']??8);jsonR(['date'=>$t,'user_id'=>$UID,'status'=>$as?'Ativo':'Pausado','active_since'=>$as?$as['clock_in']:null,'worked_seconds'=>$cs,'jornada_hours'=>$jh]);}
+if($act==='ponto_today'){_ept($db);$t=date('Y-m-d');$a=$db->prepare("SELECT id,clock_in FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NULL ORDER BY id DESC LIMIT 1");$a->execute([$UID,$t]);$as=$a->fetch();$c=$db->prepare("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,clock_in,clock_out)),0)s FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NOT NULL");$c->execute([$UID,$t]);$cs=(int)$c->fetch()['s'];$j=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,8)h FROM usuarios WHERE id=?");$j->execute([$UID]);$jh=(int)($j->fetch()['h']??8);jsonR(['date'=>$t,'user_id'=>$UID,'status'=>$as?'Ativo':'Pausado','active_since'=>$as?$as['clock_in']:null,'worked_seconds'=>$cs,'jornada_hours'=>$jh]);}
 if($act==='ponto_clock_in'){_ept($db);$t=date('Y-m-d');$n=date('Y-m-d H:i:s');$db->prepare("UPDATE ponto_sessions SET clock_out=? WHERE user_id=? AND date=? AND clock_out IS NULL")->execute([$n,$UID,$t]);$db->prepare("INSERT INTO ponto_sessions(user_id,date,clock_in)VALUES(?,?,?)")->execute([$UID,$t,$n]);jsonR(['success'=>true,'clock_in'=>$n]);}
 if($act==='ponto_clock_out'){_ept($db);$t=date('Y-m-d');$n=date('Y-m-d H:i:s');$u=$db->prepare("UPDATE ponto_sessions SET clock_out=? WHERE user_id=? AND date=? AND clock_out IS NULL");$u->execute([$n,$UID,$t]);if($u->rowCount()===0)jsonR(['error'=>'Nenhuma sessão ativa'],400);jsonR(['success'=>true,'clock_out'=>$n]);}
-if($act==='ponto_team_today'){_ept($db);$t=date('Y-m-d');$_allU=$db->query("SELECT id FROM usuarios WHERE active=1");foreach($_allU->fetchAll()as$_u)autoLunchBreak($db,$_u['id'],$t);$s=$db->prepare("SELECT u.id AS user_id,u.name,u.avatar_color,u.avatar_file,u.role,COALESCE(u.work_hours,u.jornada_hours,8)AS jornada_hours,IF(EXISTS(SELECT 1 FROM ponto_sessions p2 WHERE p2.user_id=u.id AND p2.date=? AND p2.clock_out IS NULL),'Ativo','Pausado')AS status,( COALESCE((SELECT SUM(TIMESTAMPDIFF(SECOND,p3.clock_in,p3.clock_out)) FROM ponto_sessions p3 WHERE p3.user_id=u.id AND p3.date=? AND p3.clock_out IS NOT NULL),0) + COALESCE((SELECT TIMESTAMPDIFF(SECOND,p5.clock_in,NOW()) FROM ponto_sessions p5 WHERE p5.user_id=u.id AND p5.date=? AND p5.clock_out IS NULL ORDER BY p5.id DESC LIMIT 1),0) )AS worked_seconds,(SELECT p4.clock_in FROM ponto_sessions p4 WHERE p4.user_id=u.id AND p4.date=? AND p4.clock_out IS NULL ORDER BY p4.id DESC LIMIT 1)AS active_since FROM usuarios u WHERE u.active=1 ORDER BY u.name");$s->execute([$t,$t,$t,$t]);jsonR($s->fetchAll(PDO::FETCH_ASSOC));}
+if($act==='ponto_team_today'){_ept($db);$t=date('Y-m-d');$s=$db->prepare("SELECT u.id AS user_id,u.name,u.avatar_color,u.avatar_file,u.role,COALESCE(u.work_hours,u.jornada_hours,8)AS jornada_hours,IF(EXISTS(SELECT 1 FROM ponto_sessions p2 WHERE p2.user_id=u.id AND p2.date=? AND p2.clock_out IS NULL),'Ativo','Pausado')AS status,COALESCE((SELECT SUM(TIMESTAMPDIFF(SECOND,p3.clock_in,p3.clock_out))FROM ponto_sessions p3 WHERE p3.user_id=u.id AND p3.date=? AND p3.clock_out IS NOT NULL),0)AS worked_seconds FROM usuarios u WHERE u.active=1 ORDER BY u.name");$s->execute([$t,$t]);jsonR($s->fetchAll(PDO::FETCH_ASSOC));}
 if($act==='ponto_history'){_ept($db);$u2=isset($_GET['user_id'])&&$IS_ADMIN?(int)$_GET['user_id']:$UID;$fr=$_GET['from']??date('Y-m-01');$to=$_GET['to']??date('Y-m-d');try{$d=$db->prepare("SELECT ps.date,COALESCE(u.work_hours,8)jh,SUM(TIMESTAMPDIFF(SECOND,ps.clock_in,COALESCE(ps.clock_out,NOW())))ws FROM ponto_sessions ps JOIN usuarios u ON ps.user_id=u.id WHERE ps.user_id=? AND ps.date BETWEEN ? AND ? GROUP BY ps.date,u.work_hours ORDER BY ps.date DESC");$d->execute([$u2,$fr,$to]);$days=$d->fetchAll(PDO::FETCH_ASSOC);}catch(Exception $ex){$d2=$db->prepare("SELECT ps.date,SUM(TIMESTAMPDIFF(SECOND,ps.clock_in,COALESCE(ps.clock_out,NOW())))ws FROM ponto_sessions ps WHERE ps.user_id=? AND ps.date BETWEEN ? AND ? GROUP BY ps.date ORDER BY ps.date DESC");$d2->execute([$u2,$fr,$to]);$days=array_map(function($r){$r['jh']=8;return $r;},$d2->fetchAll(PDO::FETCH_ASSOC));}$s2=$db->prepare("SELECT date,clock_in,clock_out FROM ponto_sessions WHERE user_id=? AND date BETWEEN ? AND ? ORDER BY date DESC,clock_in ASC");$s2->execute([$u2,$fr,$to]);$sm=[];foreach($s2->fetchAll(PDO::FETCH_ASSOC)as $r)$sm[$r['date']][]=$r;$res=[];foreach($days as $dx){$jS=(int)($dx['jh']??8)*3600;$wS=(int)($dx['ws']??0);$res[]=['date'=>$dx['date'],'user_id'=>$u2,'jornada_hours'=>(int)($dx['jh']??8),'worked_seconds'=>$wS,'balance_seconds'=>$wS-$jS,'sessions'=>$sm[$dx['date']]??[]];}jsonR($res);}
 
 if($act==='ponto_folga'){_ept($db);if($method==='GET'){$fr=$_GET['from']??date('Y-m-01');$to=$_GET['to']??date('Y-m-d');$q=$db->prepare("SELECT f.*,u.name AS user_name,c.name AS created_by_name FROM ponto_folgas f JOIN usuarios u ON f.user_id=u.id JOIN usuarios c ON f.created_by=c.id WHERE f.date BETWEEN ? AND ? ORDER BY f.date DESC,u.name ASC");$q->execute([$fr,$to]);jsonR($q->fetchAll(PDO::FETCH_ASSOC));}if($method==='POST'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);$b=json_decode(file_get_contents('php://input'),true)??[];$u3=(int)($b['user_id']??0);$dt=$b['date']??'';$tp=$b['tipo']??'Folga';$ob=$b['obs']??'';if(!$u3||!$dt)jsonR(['error'=>'Obrigatórios: user_id e date'],400);$db->prepare("INSERT INTO ponto_folgas(user_id,date,tipo,obs,created_by)VALUES(?,?,?,?,?)ON DUPLICATE KEY UPDATE tipo=VALUES(tipo),obs=VALUES(obs),created_by=VALUES(created_by)")->execute([$u3,$dt,$tp,$ob,$UID]);jsonR(['success'=>true]);}if($method==='DELETE'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);$id2=(int)($_GET['id']??0);if(!$id2)jsonR(['error'=>'id obrigatório'],400);$db->prepare("DELETE FROM ponto_folgas WHERE id=?")->execute([$id2]);jsonR(['success'=>true]);}jsonR(['error'=>'Método não suportado'],405);}
 if($act==='ponto_edit'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);_ept($db);$b=json_decode(file_get_contents('php://input'),true)??[];$id=(int)($b['id']??0);if(!$id)jsonR(['error'=>'id obrigatório'],400);$db->prepare("UPDATE ponto_sessions SET clock_in=COALESCE(?,clock_in),clock_out=? WHERE id=?")->execute([$b['clock_in']??null,$b['clock_out']??null,$id]);jsonR(['success'=>true]);}
-
-
-// ===== MULTI-DEMAND AUTHORIZATION =====
-if($act==='multi_demand_request'&&$method==='POST'){
-    $d=json_decode(file_get_contents('php://input'),true);
-    $demandId=(int)($d['demand_id']??0);
-    $justification=trim($d['justification']??'');
-    if(!$demandId||!$justification) jsonR(['error'=>'Demanda e justificativa obrigatórios'],400);
-    
-    $dem=$db->prepare("SELECT title FROM demandas WHERE id=?");$dem->execute([$demandId]);$demTitle=$dem->fetchColumn();
-    
-    $db->prepare("INSERT INTO multi_demand_requests (user_id,demand_id,justification) VALUES (?,?,?) ON DUPLICATE KEY UPDATE justification=VALUES(justification),status='Pendente',reviewed_by=NULL,reviewed_at=NULL")
-        ->execute([$UID,$demandId,$justification]);
-    
-    // Notificar admins
-    $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%') AND active=1")->fetchAll();
-    foreach($admins as $a){
-        if($a['id']!=$UID){
-            notify($a['id'],'demand_new',"{$ME['name']} solicita autorização para demanda simultânea","Demanda: {$demTitle} — Justificativa: {$justification}","demand:{$demandId}",'demand',$demandId);
-            sendPushToUser($db,(int)$a['id'],['title'=>'⚠️ Autorização Necessária','message'=>"{$ME['name']} quer iniciar demanda simultânea: {$demTitle}",'url'=>'/index.php#demandas']);
-        }
-    }
-    logActivity($UID,"Solicitou demanda simultânea: {$demTitle}",'demand',$demandId);
-    jsonR(['success'=>true,'message'=>'Solicitação enviada! Aguarde aprovação do admin.']);
-}
-
-if($act==='multi_demand_review'&&$method==='POST'){
-    if(!$IS_ADMIN) jsonR(['error'=>'Apenas admin pode aprovar'],403);
-    $d=json_decode(file_get_contents('php://input'),true);
-    $requestId=(int)($d['request_id']??0);
-    $status=$d['status']??'';
-    $notes=trim($d['review_notes']??'');
-    if(!$requestId||!in_array($status,['Aprovada','Rejeitada'])) jsonR(['error'=>'Dados inválidos'],400);
-    
-    $req=$db->prepare("SELECT mr.*,u.name as user_name,d.title as demand_title FROM multi_demand_requests mr JOIN usuarios u ON mr.user_id=u.id JOIN demandas d ON mr.demand_id=d.id WHERE mr.id=?");
-    $req->execute([$requestId]);$reqRow=$req->fetch();
-    if(!$reqRow) jsonR(['error'=>'Solicitação não encontrada'],404);
-    
-    $db->prepare("UPDATE multi_demand_requests SET status=?,reviewed_by=?,review_notes=?,reviewed_at=NOW() WHERE id=?")
-        ->execute([$status,$UID,$notes,$requestId]);
-    
-    $msg=$status==='Aprovada'
-        ?"Autorização APROVADA para demanda simultânea: {$reqRow['demand_title']}"
-        :"Autorização REJEITADA para demanda simultânea: {$reqRow['demand_title']}".($notes?" — {$notes}":'');
-    
-    notify($reqRow['user_id'],$status==='Aprovada'?'demand_status':'demand_status',$msg,$notes,"demand:{$reqRow['demand_id']}",'demand',$reqRow['demand_id']);
-    sendPushToUser($db,(int)$reqRow['user_id'],['title'=>$status==='Aprovada'?'✅ Autorização Aprovada':'❌ Autorização Rejeitada','message'=>$msg,'url'=>'/index.php#demandas']);
-    
-    // Se aprovada, automaticamente aceitar e iniciar a demanda
-    if($status==='Aprovada'){
-        $db->prepare("UPDATE devs_demandas SET acceptance='Aceita',assigned_at=NOW() WHERE demand_id=? AND user_id=?")->execute([$reqRow['demand_id'],$reqRow['user_id']]);
-        $curStatus=$db->prepare("SELECT status FROM demandas WHERE id=?");$curStatus->execute([$reqRow['demand_id']]);$cs=$curStatus->fetchColumn();
-        if(in_array($cs,['Aberta','Aguardando Aceite'])){
-            $db->prepare("UPDATE demandas SET status='Em Andamento',started_at=COALESCE(started_at,NOW()) WHERE id=?")->execute([$reqRow['demand_id']]);
-            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value,details) VALUES (?,?,'Status alterado','Em Andamento','Autorizado para demanda simultânea')")->execute([$reqRow['demand_id'],$reqRow['user_id']]);
-        }
-    }
-    
-    logActivity($UID,"Multi-demanda {$status}: {$reqRow['demand_title']} para {$reqRow['user_name']}",'demand',$reqRow['demand_id']);
-    jsonR(['success'=>true]);
-}
-
-if($act==='multi_demand_pending'){
-    if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
-    $s=$db->prepare("SELECT mr.*,u.name as user_name,u.avatar_color,u.avatar_file,d.title as demand_title,d.priority,d.system_id,s.name as system_name,
-        (SELECT COUNT(*) FROM devs_demandas dd2 JOIN demandas d2 ON dd2.demand_id=d2.id WHERE dd2.user_id=mr.user_id AND d2.status='Em Andamento') as current_active
-        FROM multi_demand_requests mr 
-        JOIN usuarios u ON mr.user_id=u.id 
-        JOIN demandas d ON mr.demand_id=d.id 
-        LEFT JOIN sistemas s ON d.system_id=s.id
-        WHERE mr.status='Pendente' 
-        ORDER BY mr.created_at DESC");
-    $s->execute();
-    jsonR($s->fetchAll());
-}
-
 
 // ===== 404 FALLBACK =====
 jsonR(['error'=>'Endpoint não encontrado'],404);

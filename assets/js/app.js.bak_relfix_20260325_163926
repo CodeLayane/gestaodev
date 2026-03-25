@@ -451,10 +451,10 @@ function selectMention(did,name){const input=document.getElementById('cmt-'+did)
 function handleMentionKey(e,input,did){const dd=document.getElementById('mention-dd-'+did);if(!dd||!dd.classList.contains('show')){if(e.key==='Enter')addCmt(did);return}const items=dd.querySelectorAll('.mention-item');if(e.key==='ArrowDown'){e.preventDefault();mentionIdx=Math.min(mentionIdx+1,items.length-1);items.forEach((it,i)=>it.classList.toggle('active',i===mentionIdx))}else if(e.key==='ArrowUp'){e.preventDefault();mentionIdx=Math.max(mentionIdx-1,0);items.forEach((it,i)=>it.classList.toggle('active',i===mentionIdx))}else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();if(mentionIdx>=0&&items[mentionIdx])selectMention(did,items[mentionIdx].dataset.name);else if(items.length===1)selectMention(did,items[0].dataset.name);else addCmt(did)}else if(e.key==='Escape'){closeMentionDD(did)}}
 async function deleteImg(demandId,imgId){if(!confirm('Remover este arquivo?'))return;await api('demand_image_delete',{method:'POST',params:{demand_id:demandId,image_id:imgId}});openDetail(demandId)}
 var _imgQ=[],_imgUp=false;async function uploadImg(id,f){if(!f)return;if(f.size===0||!f.name.includes('.')){showToast('⚠️ Envio de pastas não é permitido');return}_imgQ.push({id,f});if(!_imgUp)_procImgQ()}async function _procImgQ(){if(!_imgQ.length){_imgUp=false;return}_imgUp=true;var o=_imgQ.shift();try{var fd=new FormData();fd.append('image',o.f);var r=await api('demand_upload',{params:{id:o.id},formData:fd});if(r&&r.error)showToast('⚠️ Falha: '+o.f.name+' — '+(r.error||'erro desconhecido'),4000)}catch(e){showToast('⚠️ Não foi possível enviar: '+o.f.name,4000)}if(_imgQ.length){_procImgQ()}else{_imgUp=false;openDetail(o.id)}}
-async function acceptDemand(id,accept){let reason='';if(!accept){reason=prompt('Motivo da recusa:');if(reason===null)return}const r=await api('demand_accept',{method:'POST',params:{id},body:{acceptance:accept?'Aceita':'Recusada',reason}});if(r?.needs_multi_auth){openMultiAuthModal(r);return}closeM('m-detail');showToast(accept?IC.check+' Demanda assumida! Desenvolvimento iniciado.':IC.block+' Demanda recusada');loadPage(getCurrentPage());loadNotifCount()}
+async function acceptDemand(id,accept){let reason='';if(!accept){reason=prompt('Motivo da recusa:');if(reason===null)return}await api('demand_accept',{method:'POST',params:{id},body:{acceptance:accept?'Aceita':'Recusada',reason}});closeM('m-detail');showToast(accept?IC.check+' Demanda assumida! Desenvolvimento iniciado.':IC.block+' Demanda recusada');loadPage(getCurrentPage());loadNotifCount()}
 async function deleteComment(cid,did){if(!confirm('Excluir este comentário?'))return;const r=await api('comment_delete',{method:'DELETE',params:{id:cid}});if(r?.success){showToast('Comentário excluído');openDetail(did)}else{showToast('⚠️ '+(r?.error||'Erro'))}}
 async function removeDevFromDemand(did,uid,name){if(!confirm("Remover "+name+" desta demanda?"))return;const r=await api("demand_remove_dev",{method:"POST",params:{id:did},body:{user_id:uid}});if(r?.error)return showToast("⚠️ "+r.error);showToast("✅ "+name+" removido");openDetail(did);loadPage(getCurrentPage())}
-async function claimDemand(id,force=false,multiAuth=false){const r=await api('demand_claim',{method:'POST',params:{id},body:{force,multi_authorized:multiAuth}});if(r?.needs_multi_auth){openMultiAuthModal(r);return}if(r?.conflict){if(confirm(r.message+'\n\nDeseja assumir mesmo assim?')){return claimDemand(id,true)}return}if(r?.error&&!r?.success){return showToast(r.error)}closeM('m-detail');if(r?.started)showToast(IC.check+' Demanda assumida! Desenvolvimento iniciado.');else if(r?.already)showToast(IC.check+' Você já está nesta demanda.');else showToast(IC.check+' Demanda atribuída a você!');loadPage(getCurrentPage());loadNotifCount()}
+async function claimDemand(id,force=false){const r=await api('demand_claim',{method:'POST',params:{id},body:{force}});if(r?.conflict){if(confirm(r.message+'\n\nDeseja assumir mesmo assim?')){return claimDemand(id,true)}return}if(r?.error&&!r?.success){return showToast(r.error)}closeM('m-detail');if(r?.started)showToast(IC.check+' Demanda assumida! Desenvolvimento iniciado.');else if(r?.already)showToast(IC.check+' Você já está nesta demanda.');else showToast(IC.check+' Demanda atribuída a você!');loadPage(getCurrentPage());loadNotifCount()}
 async function delegateDemand(id,removeSelf){const sel=document.getElementById('delegate-sel-'+id);const tid=sel?.value;if(!tid)return showToast('Selecione um dev');const r=await api('demand_delegate',{method:'POST',params:{id},body:{target_user_id:+tid,remove_self:removeSelf}});if(r?.error)return showToast(r.error);showToast(removeSelf?IC.refresh+' Demanda transferida!':IC.plus+' Dev adicionado!');openDetail(id)}
 function returnToDevPrompt(id){const just=prompt('Motivo da devolução (o que precisa ser ajustado):');if(!just||!just.trim())return;changeStatus(id,'Em Andamento',just.trim())}
 
@@ -1381,9 +1381,9 @@ if(!(byDev||[]).length)html+='<tr><td colspan="8" style="text-align:center;paddi
 html+='</tbody></table></div></div>';
 
 // TABLE: By System
-html+='<div class="tbl-c" data-chart="bysys" style="margin-top:14px"><div class="tbl-bar"><h3>Demandas por Sistema</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Sistema</th><th>Total</th><th>Abertas</th><th>Andamento</th><th>Concluídas</th><th>Tempo Médio</th></tr></thead><tbody>';
+html+='<div class="tbl-c" data-chart="bysys" style="margin-top:14px"><div class="tbl-bar"><h3>Demandas por Sistema</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Sistema</th><th>Total</th><th>Abertas</th><th>Andamento</th><th>Concluídas</th><th>Canceladas</th><th>Média (dias)</th></tr></thead><tbody>';
 (bySys||[]).forEach(s=>{
-  const _sAvgMin=s.avg_days?Math.round(parseFloat(s.avg_days)*24*60):0;const _sAvgTxt=_sAvgMin?(_sAvgMin<60?_sAvgMin+'min':Math.floor(_sAvgMin/60)+'h '+(_sAvgMin%60)+'m'):'—';html+='<tr><td style="font-weight:600">'+esc(s.name||'Sem sistema')+'</td><td style="font-weight:700">'+(s.total||0)+'</td><td>'+(s.abertas||0)+'</td><td style="color:var(--acc)">'+(s.andamento||0)+'</td><td style="color:var(--ok)">'+(s.concluidas||0)+'</td><td>'+_sAvgTxt+'</td></tr>';
+  html+='<tr><td style="font-weight:600">'+esc(s.name||'Sem sistema')+'</td><td style="font-weight:700">'+(s.total||0)+'</td><td>'+(s.abertas||0)+'</td><td style="color:var(--acc)">'+(s.andamento||0)+'</td><td style="color:var(--ok)">'+(s.concluidas||0)+'</td><td style="color:var(--err)">'+(s.canceladas||0)+'</td><td>'+(s.avg_days?parseFloat(s.avg_days).toFixed(1):'—')+'</td></tr>';
 });
 if(!(bySys||[]).length)html+='<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--t3)">Sem dados</td></tr>';
 html+='</tbody></table></div></div>';
@@ -1506,7 +1506,7 @@ if(selectedCharts.indexOf('bydev')>=0){
 
 // Por Sistema - only if selected
 if(selectedCharts.indexOf('bysys')>=0){
-  const sr=[['Sistema','Total','Abertas','Andamento','Concluídas','Tempo Médio']];
+  const sr=[['Sistema','Total','Abertas','Andamento','Concluídas','Canceladas','Tempo Médio']];
   const filteredSys=_repState.systems.length>0
     ?(rd.bySys||[]).filter(s=>{
       const sysId=String(s.system_id||s.id||'');
@@ -1674,45 +1674,35 @@ var _wk=rd.working||[];
 doc.setFont('helvetica','normal');doc.setFontSize(7);doc.text(_wk.length+' demanda'+(_wk.length!==1?'s':''),mg+twid-4,y+3,{align:'right'});
 y+=12;
 if(_wk.length){
-  // Column widths: Demanda(80) Sistema(32) Dev(30) Prior(22) Tempo(22) Prazo(12) = 198
-  var wkCols=[80,32,30,22,22,12];
-  var wkHeaders=['Demanda','Sistema','Dev(s)','Prior.','Exec.','Prazo'];
+  var wkh=['Demanda','Sistema','Dev(s)','Prioridade','Tempo Exec.','Prazo'];
+  var wkw=[120,30,26,22,20,18];
   doc.setFillColor(40,55,85);doc.roundedRect(mg,y-4,twid,7,1,1,'F');
-  var _cx=mg;
-  wkHeaders.forEach(function(h,i){doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(180,195,220);doc.text(h.toUpperCase(),_cx+2,y);_cx+=wkCols[i]});
-  y+=6;
+  wkh.forEach(function(h,i){var cx=mg+wkw.slice(0,i).reduce(function(a,b){return a+b},0);doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(180,195,220);doc.text(h.toUpperCase(),cx+2,y)});y+=6;
   _wk.forEach(function(dm,ri){
     safeY(8);
     if(ri%2===0){doc.setFillColor(235,240,250);doc.rect(mg,y-3.5,twid,7,'F')}else{doc.setFillColor(245,248,255);doc.rect(mg,y-3.5,twid,7,'F')}
-    doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(30,40,60);
-    var _cx2=mg;
-    // Demanda — truncar
-    var _title=(dm.title||'').substring(0,48)+(dm.title&&dm.title.length>48?'...':'');
-    doc.setFont('helvetica','bold');doc.text(_title,_cx2+2,y,{maxWidth:wkCols[0]-4});_cx2+=wkCols[0];
-    // Sistema
+    doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(30,40,60);
+    var cx=mg;
+    var title=dm.title||'';
+    doc.setFont('helvetica','bold');doc.text(title,cx+2,y);cx+=wkw[0];
     doc.setFont('helvetica','normal');doc.setTextColor(80,90,110);
-    doc.text((dm.system_name||'--').substring(0,18),_cx2+2,y,{maxWidth:wkCols[1]-4});_cx2+=wkCols[1];
-    // Devs
-    var _dNames=(dm.devs||[]).map(function(d){return d.name}).join(', ').substring(0,18);
-    doc.text(_dNames||'--',_cx2+2,y,{maxWidth:wkCols[2]-4});_cx2+=wkCols[2];
-    // Prioridade badge
+    doc.text((dm.system_name||'--').substring(0,16),cx+2,y);cx+=wkw[1];
+    var dNames=(dm.devs||[]).map(function(d){return d.name}).join(', ').substring(0,18);
+    doc.text(dNames||'--',cx+2,y);cx+=wkw[2];
     var pc={'Urgente':[220,38,38],'Alta':[234,88,12],'Média':[202,138,4],'Baixa':[22,163,74]};
     var pcc=pc[dm.priority]||[100,100,100];
-    doc.setFillColor(pcc[0],pcc[1],pcc[2]);doc.roundedRect(_cx2+1,y-2.5,18,5,1.5,1.5,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(5);doc.setTextColor(255,255,255);doc.text(dm.priority||'--',_cx2+2.5,y+0.3);_cx2+=wkCols[3];
-    // Tempo exec
-    doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(59,130,246);
-    var tw2='--';var _tsd2=dm.started_at||dm.start_date||dm.created_at||null;
-    if(_tsd2){try{var _ts2=new Date(String(_tsd2).replace(/ /g,'T'));var _tdiff2=Date.now()-_ts2.getTime();if(_tdiff2>0&&!isNaN(_tdiff2)){var _td2=Math.floor(_tdiff2/864e5),_th2=Math.floor((_tdiff2%864e5)/36e5);tw2=_td2>0?_td2+'d '+_th2+'h':_th2+'h'}}catch(e){}}
-    doc.text(tw2,_cx2+2,y,{maxWidth:wkCols[4]-4});_cx2+=wkCols[4];
-    // Prazo
+    doc.setFillColor(pcc[0],pcc[1],pcc[2]);doc.roundedRect(cx+1,y-2.5,18,5,1.5,1.5,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(5.5);doc.setTextColor(255,255,255);doc.text(dm.priority||'--',cx+2.5,y+0.5);cx+=wkw[3];
+    doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(59,130,246);
+    var tw='--';var _tsd=dm.started_at||dm.start_date||dm.created_at||null;if(_tsd){try{var _ts=new Date(String(_tsd).replace(/ /g,'T'));var _tdiff=Date.now()-_ts.getTime();if(_tdiff>0&&!isNaN(_tdiff)){var _tdays=Math.floor(_tdiff/864e5),_thrs=Math.floor((_tdiff%864e5)/36e5),_tmins=Math.floor((_tdiff%36e5)/6e4);tw=_tdays>0?_tdays+'d '+_thrs+'h':_thrs>0?_thrs+'h '+_tmins+'m':_tmins+'m'}}catch(e){}}
+    doc.text(tw,cx+2,y);cx+=wkw[4];
     doc.setTextColor(100,110,130);
-    var dl2='--';if(dm.deadline){var diff3=Math.ceil((new Date(dm.deadline+'T12:00:00')-Date.now())/86400000);if(diff3<0){doc.setTextColor(220,38,38);dl2=Math.abs(diff3)+'d'}else{dl2=diff3+'d'}}
-    doc.text(dl2,_cx2+2,y,{maxWidth:wkCols[5]-4});
+    var dl='--';if(dm.deadline){var diff2=Math.ceil((new Date(dm.deadline+'T12:00:00')-Date.now())/86400000);if(diff2<0){doc.setTextColor(220,38,38);dl=Math.abs(diff2)+'d atraso'}else if(diff2<=3){doc.setTextColor(234,88,12);dl=diff2+'d'}else{dl=diff2+'d'}}
+    doc.text(dl,cx+2,y);
     y+=6;
   });
   doc.setDrawColor(200,210,230);doc.line(mg,y-2,mg+twid,y-2);
-}else{doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(140,150,170);doc.text('Nenhuma demanda em andamento',pw/2,y,{align:'center'});y+=6;}
+}else{doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(140,150,170);doc.text('Nenhuma demanda em andamento no momento',pw/2,y,{align:'center'});y+=6;}
 y+=6;
 
 // ============================================================
@@ -1790,7 +1780,7 @@ if(selectedCharts.indexOf('bydev')>=0){
   
   const tblW=pw-mg*2;
   doc.setTextColor(59,130,246);doc.setFontSize(12);doc.setFont('helvetica','bold');
-  doc.text('DEMANDAS POR DESENVOLVEDOR',mg,y);y+=7;
+  doc.text('PRODUTIVIDADE POR DESENVOLVEDOR',mg,y);y+=7;
   const dh=['Desenvolvedor','Concluídas','Aguardando','Tempo Médio','% Conclusão'];
   const dw=[72,28,28,28,42];
   // Header row
@@ -1836,8 +1826,8 @@ if(selectedCharts.indexOf('bysys')>=0){
   const tblW=pw-mg*2;
   doc.setTextColor(59,130,246);doc.setFontSize(12);doc.setFont('helvetica','bold');
   doc.text('DEMANDAS POR SISTEMA',mg,y);y+=7;
-  const bsh=['Sistema','Total','Abertas','Andamento','Concluídas','Tempo Médio'];
-  const bsw=[72,22,22,26,26,30];
+  const bsh=['Sistema','Total','Abertas','Andamento','Concluídas','Canceladas','Tempo Médio'];
+  const bsw=[62,20,20,24,24,24,24];
   // Header row
   doc.setFillColor(30,45,80);doc.roundedRect(mg,y,tblW,6.5,1,1,'F');
   doc.setTextColor(220,225,240);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
@@ -1855,7 +1845,7 @@ if(selectedCharts.indexOf('bysys')>=0){
   filteredBySys.forEach((s,ri)=>{
     safeY(7);
     if(ri%2===0){doc.setFillColor(240,242,248);doc.rect(mg,y,tblW,6,'F')}
-    const _pdfSysMin=s.avg_days?Math.round(parseFloat(s.avg_days)*24*60):0;const _pdfSysTxt=_pdfSysMin?(_pdfSysMin<60?_pdfSysMin+'min':Math.floor(_pdfSysMin/60)+'h '+(_pdfSysMin%60)+'m'):'—';const vals=[s.name||'Sem sistema',String(s.total||0),String(s.abertas||0),String(s.andamento||0),String(s.concluidas||0),_pdfSysTxt];
+    const vals=[s.name||'Sem sistema',String(s.total||0),String(s.abertas||0),String(s.andamento||0),String(s.concluidas||0),String(s.canceladas||0),s.avg_days?parseFloat(s.avg_days).toFixed(1):'—'];
     doc.setTextColor(40,50,70);doc.setFontSize(7.5);
     vals.forEach((v,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=bsw[j];doc.text(String(v),cx+3,y+4.2)});
     doc.setDrawColor(210,215,225);doc.setLineWidth(0.15);doc.line(mg,y+6,pw-mg,y+6);
@@ -1930,8 +1920,8 @@ if(_proxList.length > 0 && selectedCharts.indexOf('bysys') >= 0 || true) {
   doc.text('PRÓXIMAS DEMANDAS', mg, y); y += 7;
 
   // Header
-  const ph2 = ['Demanda', 'Sistema', 'Dev(s)', 'Prior.', 'Prazo'];
-  const pw2 = [82, 34, 34, 24, 24];
+  const ph2 = ['Demanda', 'Sistema', 'Prioridade', 'Dev(s)', 'Prazo'];
+  const pw2 = [70, 38, 24, 38, 28];
   doc.setFillColor(30, 45, 80);
   doc.roundedRect(mg, y, tblW, 6.5, 1, 1, 'F');
   doc.setTextColor(220, 225, 240);
@@ -1958,7 +1948,7 @@ if(_proxList.length > 0 && selectedCharts.indexOf('bysys') >= 0 || true) {
       doc.setTextColor(40, 50, 70);
       doc.setFontSize(7.5);
 
-      const title = (d.title || '').substring(0, 50) + (d.title && d.title.length > 50 ? '...' : '');
+      const title = (d.title || '').substring(0, 35) + (d.title && d.title.length > 35 ? '...' : '');
       const sys   = (d.system_name || '—').substring(0, 18);
       const pri   = d.priority || '—';
       const devs  = (d.devs || []).map(dv => dv.name).join(', ').substring(0, 20) || '—';
@@ -1975,12 +1965,12 @@ if(_proxList.length > 0 && selectedCharts.indexOf('bysys') >= 0 || true) {
       let cx = mg;
       vals.forEach((v, i) => {
         doc.setTextColor(40, 50, 70);
-        if(i === 3 && d.deadline) {
+        if(i === 4 && d.deadline) {
           const diff2 = Math.ceil((new Date(d.deadline + 'T12:00:00') - Date.now()) / 86400000);
           if(diff2 < 0) doc.setTextColor(220, 38, 38);
           else if(diff2 <= 7) doc.setTextColor(234, 88, 12);
         }
-        doc.text(String(v), cx + 3, y + 4.2, {maxWidth: pw2[i] - 4});
+        doc.text(String(v), cx + 3, y + 4.2);
         cx += pw2[i];
       });
       doc.setDrawColor(210, 215, 225);
@@ -2334,116 +2324,6 @@ const now=Date.now();
 if(now-lastDeadlineCheck<300000)return; // every 5 min
 lastDeadlineCheck=now;
 try{await api('check_deadlines')}catch(e){}}
-
-
-// ===== MULTI-DEMAND AUTHORIZATION =====
-function openMultiAuthModal(data) {
-  closeM('m-detail');
-  let mo = document.getElementById('m-multi-auth');
-  if (!mo) {
-    mo = document.createElement('div');
-    mo.id = 'm-multi-auth';
-    mo.className = 'modal-o';
-    mo.innerHTML = '<div class="modal" style="max-width:520px"><div class="modal-h"><h3 id="mma-title">Autorização Necessária</h3><button class="modal-x" onclick="closeM(\'m-multi-auth\')">×</button></div><div class="modal-b" id="mma-body"></div><div class="modal-f" id="mma-foot"></div></div>';
-    document.body.appendChild(mo);
-  }
-
-  const activeList = (data.active_demands || []).map(d =>
-    '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg3);border-radius:8px;margin-bottom:4px;border-left:3px solid #3b82f6">' +
-    '<span style="font-size:11px;font-weight:600;color:var(--t1)">#' + d.id + ' ' + esc(d.title) + '</span>' +
-    '<span class="badge s-andamento" style="font-size:9px;margin-left:auto">Em Andamento</span></div>'
-  ).join('');
-
-  document.getElementById('mma-title').innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Limite de Demandas Simultâneas';
-
-  document.getElementById('mma-body').innerHTML =
-    '<div style="background:rgba(245,158,11,.08);border:1px solid var(--warn);border-radius:10px;padding:14px;margin-bottom:16px">' +
-    '<div style="font-weight:700;font-size:13px;color:var(--warn);margin-bottom:6px">Você já tem ' + data.active_count + ' demanda(s) em andamento</div>' +
-    '<div style="font-size:12px;color:var(--t2);line-height:1.5">A regra permite apenas <strong>1 demanda por vez</strong>. Para iniciar uma nova, é necessário autorização do administrador.</div></div>' +
-    '<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:6px">Suas demandas ativas:</div>' + activeList + '</div>' +
-    '<div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:14px">' +
-    '<div style="font-size:12px;font-weight:600;color:var(--t1);margin-bottom:8px">Nova demanda solicitada:</div>' +
-    '<div style="font-weight:700;font-size:14px;color:var(--acc)">#' + data.demand_id + ' — ' + esc(data.demand_title) + '</div></div>' +
-    '<div class="fg"><label style="font-weight:600">Justificativa *</label>' +
-    '<textarea id="mma-justification" rows="3" placeholder="Explique por que precisa trabalhar em duas demandas simultaneamente..." style="font-size:12px"></textarea></div>';
-
-  document.getElementById('mma-foot').innerHTML =
-    '<button class="btn btn-g" onclick="closeM(\'m-multi-auth\')">Cancelar</button>' +
-    '<button class="btn btn-p" onclick="submitMultiAuthRequest(' + data.demand_id + ')">Solicitar Autorização</button>';
-
-  openM('m-multi-auth');
-}
-
-async function submitMultiAuthRequest(demandId) {
-  const justification = document.getElementById('mma-justification')?.value?.trim();
-  if (!justification) return showToast('Justificativa obrigatória');
-  const r = await api('multi_demand_request', {method: 'POST', body: {demand_id: demandId, justification}});
-  if (r?.error) return showToast('⚠️ ' + r.error);
-  closeM('m-multi-auth');
-  showToast('📨 Solicitação enviada! Aguarde aprovação do admin.');
-}
-
-// Admin: verificar pendências de multi-demanda periodicamente
-async function checkMultiDemandPending() {
-  if (!IS_ADMIN) return;
-  try {
-    const pending = await api('multi_demand_pending');
-    if (!pending || !pending.length) return;
-    const badge = document.getElementById('b-multi');
-    if (badge) { badge.textContent = pending.length; badge.style.display = ''; }
-    // Mostrar toast para admin se houver novas pendências
-    if (pending.length > 0 && !window._lastMultiCount) {
-      showToast('⚠️ ' + pending.length + ' solicitação(ões) de demanda simultânea pendente(s)');
-    }
-    window._lastMultiCount = pending.length;
-  } catch(e) {}
-}
-
-function openMultiDemandReview(requestId, userName, demandTitle, justification, currentActive) {
-  let mo = document.getElementById('m-multi-review');
-  if (!mo) {
-    mo = document.createElement('div');
-    mo.id = 'm-multi-review';
-    mo.className = 'modal-o';
-    mo.innerHTML = '<div class="modal" style="max-width:500px"><div class="modal-h"><h3>Autorizar Demanda Simultânea</h3><button class="modal-x" onclick="closeM(\'m-multi-review\')">×</button></div><div class="modal-b" id="mmr-body"></div><div class="modal-f" id="mmr-foot"></div></div>';
-    document.body.appendChild(mo);
-  }
-
-  document.getElementById('mmr-body').innerHTML =
-    '<div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:14px">' +
-    '<div style="font-size:12px;color:var(--t3)">Solicitante</div>' +
-    '<div style="font-size:15px;font-weight:700;color:var(--t1)">' + esc(userName) + '</div>' +
-    '<div style="font-size:11px;color:var(--t3);margin-top:4px">Já possui <strong style="color:var(--warn)">' + currentActive + '</strong> demanda(s) em andamento</div></div>' +
-    '<div style="background:var(--accg);border-radius:10px;padding:14px;margin-bottom:14px">' +
-    '<div style="font-size:12px;color:var(--t3)">Demanda solicitada</div>' +
-    '<div style="font-size:14px;font-weight:700;color:var(--acc)">' + esc(demandTitle) + '</div></div>' +
-    '<div style="background:rgba(245,158,11,.08);border:1px solid var(--warn);border-radius:10px;padding:14px;margin-bottom:14px">' +
-    '<div style="font-size:10px;font-weight:700;color:var(--warn);text-transform:uppercase;margin-bottom:4px">Justificativa do dev</div>' +
-    '<div style="font-size:13px;color:var(--t1);font-style:italic;line-height:1.5">"' + esc(justification) + '"</div></div>' +
-    '<div class="fg"><label>Observações (opcional)</label><textarea id="mmr-notes" rows="2" placeholder="Motivo da decisão..." style="font-size:12px"></textarea></div>';
-
-  document.getElementById('mmr-foot').innerHTML =
-    '<button class="btn btn-d" onclick="reviewMultiDemand(' + requestId + ',\'Rejeitada\')">Rejeitar</button>' +
-    '<button class="btn btn-ok" onclick="reviewMultiDemand(' + requestId + ',\'Aprovada\')">' + IC.check + ' Autorizar</button>';
-
-  openM('m-multi-review');
-}
-
-async function reviewMultiDemand(requestId, status) {
-  const notes = document.getElementById('mmr-notes')?.value?.trim() || '';
-  const r = await api('multi_demand_review', {method: 'POST', body: {request_id: requestId, status, review_notes: notes}});
-  if (r?.error) return showToast('⚠️ ' + r.error);
-  closeM('m-multi-review');
-  showToast(status === 'Aprovada' ? '✅ Autorização concedida!' : '❌ Autorização negada');
-  if (typeof loadDashboard === 'function') loadDashboard();
-}
-
-// Hook no polling para verificar multi-demand
-if (typeof IS_ADMIN !== 'undefined' && IS_ADMIN) {
-  setInterval(checkMultiDemandPending, 30000);
-  setTimeout(checkMultiDemandPending, 3000);
-}
-
 
 // ===== INIT =====
 (async()=>{await loadBaseData();
