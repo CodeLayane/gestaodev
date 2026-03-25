@@ -526,6 +526,93 @@ if($act==='demand_delegate'&&isset($_GET['id'])){
 // Remover dev de uma demanda
 
 
+// ===== PONTO DIGITAL =====
+if($act==='ponto_status'){
+    // Retorna sessao aberta do dia + total trabalhado hoje
+    $today=date('Y-m-d');
+    $open=$db->prepare("SELECT id,clock_in FROM ponto WHERE user_id=? AND date=? AND clock_out IS NULL ORDER BY id DESC LIMIT 1");
+    $open->execute([$UID,$today]);$cur=$open->fetch();
+    $closed=$db->prepare("SELECT clock_in,clock_out FROM ponto WHERE user_id=? AND date=? AND clock_out IS NOT NULL");
+    $closed->execute([$UID,$today]);$sessions=$closed->fetchAll();
+    $totalSec=0;
+    foreach($sessions as $s){$totalSec+=strtotime($s['clock_out'])-strtotime($s['clock_in']);}
+    if($cur){$totalSec+=time()-strtotime($cur['clock_in']);}
+    $wh=$db->prepare("SELECT work_hours FROM usuarios WHERE id=?");$wh->execute([$UID]);
+    $workHours=$wh->fetchColumn()?:6;
+    jsonR(['active'=>!!$cur,'session_id'=>$cur['id']??null,'clock_in'=>$cur['clock_in']??null,'total_seconds'=>$totalSec,'work_hours'=>$workHours,'is_extra'=>$totalSec>($workHours*3600)]);
+}
+
+if($act==='ponto_clock_in'&&$method==='POST'){
+    $today=date('Y-m-d');
+    // Verificar se ja tem sessao aberta
+    $chk=$db->prepare("SELECT id FROM ponto WHERE user_id=? AND date=? AND clock_out IS NULL");
+    $chk->execute([$UID,$today]);
+    if($chk->fetch()) jsonR(['error'=>'Já possui sessão aberta'],400);
+    $db->prepare("INSERT INTO ponto (user_id,date,clock_in) VALUES (?,?,NOW())")->execute([$UID,$today]);
+    $newId=$db->lastInsertId();
+    jsonR(['success'=>true,'id'=>$newId,'clock_in'=>date('Y-m-d H:i:s')]);
+}
+
+if($act==='ponto_clock_out'&&$method==='POST'){
+    $today=date('Y-m-d');
+    $d=json_decode(file_get_contents('php://input'),true);
+    $note=trim($d['note']??'');
+    $s=$db->prepare("SELECT id FROM ponto WHERE user_id=? AND date=? AND clock_out IS NULL ORDER BY id DESC LIMIT 1");
+    $s->execute([$UID,$today]);$row=$s->fetch();
+    if(!$row) jsonR(['error'=>'Nenhuma sessão aberta'],400);
+    $db->prepare("UPDATE ponto SET clock_out=NOW(),note=? WHERE id=?")->execute([$note?:null,$row['id']]);
+    jsonR(['success'=>true]);
+}
+
+if($act==='ponto_history'){
+    $uid=isset($_GET['user_id'])&&(strpos($ROLE,'admin')!==false)?(int)$_GET['user_id']:$UID;
+    $from=$_GET['from']??date('Y-m-01');
+    $to=$_GET['to']??date('Y-m-d');
+    $s=$db->prepare("SELECT p.*,u.name as user_name,u.work_hours,e.name as editor_name FROM ponto p LEFT JOIN usuarios u ON p.user_id=u.id LEFT JOIN usuarios e ON p.edited_by=e.id WHERE p.user_id=? AND p.date BETWEEN ? AND ? ORDER BY p.date DESC,p.clock_in ASC");
+    $s->execute([$uid,$from,$to]);$rows=$s->fetchAll();
+    // Agrupar por dia
+    $days=[];
+    foreach($rows as $r){
+        $d=$r['date'];
+        if(!isset($days[$d]))$days[$d]=['date'=>$d,'sessions'=>[],'total_seconds'=>0,'work_hours'=>$r['work_hours']??6,'user_name'=>$r['user_name']];
+        $sec=$r['clock_out']?strtotime($r['clock_out'])-strtotime($r['clock_in']):time()-strtotime($r['clock_in']);
+        $days[$d]['sessions'][]=$r;
+        $days[$d]['total_seconds']+=$sec;
+    }
+    jsonR(['days'=>array_values($days),'user_id'=>$uid]);
+}
+
+if($act==='ponto_all_today'){
+    if(strpos($ROLE,'admin')===false) jsonR(['error'=>'Sem permissao'],403);
+    $today=date('Y-m-d');
+    $s=$db->prepare("SELECT u.id,u.name,u.avatar_color,u.avatar_file,u.work_hours,
+        (SELECT SUM(TIMESTAMPDIFF(SECOND,p2.clock_in,IFNULL(p2.clock_out,NOW()))) FROM ponto p2 WHERE p2.user_id=u.id AND p2.date=?) as total_seconds,
+        (SELECT COUNT(*) FROM ponto p3 WHERE p3.user_id=u.id AND p3.date=? AND p3.clock_out IS NULL) as active
+        FROM usuarios u WHERE u.active=1 AND u.role LIKE '%dev%' ORDER BY u.name");
+    $s->execute([$today,$today]);
+    jsonR($s->fetchAll());
+}
+
+if($act==='ponto_edit'&&$method==='POST'){
+    if(strpos($ROLE,'admin')===false) jsonR(['error'=>'Sem permissao'],403);
+    $d=json_decode(file_get_contents('php://input'),true);
+    $pid=(int)($d['id']??0);
+    if(!$pid) jsonR(['error'=>'ID invalido'],400);
+    $db->prepare("UPDATE ponto SET clock_in=?,clock_out=?,note=?,edited_by=? WHERE id=?")
+        ->execute([$d['clock_in'],$d['clock_out']?:null,$d['note']?:null,$UID,$pid]);
+    logActivity($UID,'Ponto editado','ponto',$pid);
+    jsonR(['success'=>true]);
+}
+
+if($act==='ponto_delete'&&$method==='DELETE'){
+    if(strpos($ROLE,'admin')===false) jsonR(['error'=>'Sem permissao'],403);
+    $pid=(int)($_GET['id']??0);
+    if(!$pid) jsonR(['error'=>'ID invalido'],400);
+    $db->prepare("DELETE FROM ponto WHERE id=?")->execute([$pid]);
+    jsonR(['success'=>true]);
+}
+
+// Deletar comentario (somente o autor)
 if($act==='comment_delete'&&isset($_GET['id'])){
     $cid=(int)$_GET['id'];
     $c=$db->prepare("SELECT user_id,demand_id FROM comentarios_demandas WHERE id=?");$c->execute([$cid]);$row=$c->fetch();
@@ -1946,29 +2033,9 @@ if($act==='user_permissions_reset'&&$method==='POST'){
     jsonR(['success'=>true]);
 }
 
-
-// ===== PONTO DIGITAL =====
-function _ept($db){static $x=false;if($x)return;$x=true;$db->exec("CREATE TABLE IF NOT EXISTS ponto_sessions(id INT AUTO_INCREMENT PRIMARY KEY,user_id INT NOT NULL,date DATE NOT NULL,clock_in DATETIME NOT NULL,clock_out DATETIME DEFAULT NULL,INDEX idx_ud(user_id,date))ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");try{$db->exec("ALTER TABLE usuarios ADD COLUMN jornada_hours TINYINT UNSIGNED NOT NULL DEFAULT 8");}catch(Exception $ex){}$db->exec("CREATE TABLE IF NOT EXISTS ponto_folgas(id INT AUTO_INCREMENT PRIMARY KEY,user_id INT NOT NULL,date DATE NOT NULL,tipo VARCHAR(50) NOT NULL DEFAULT 'Folga',obs TEXT,created_by INT NOT NULL,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uq_ud(user_id,date))ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");}
-
-if($act==='ponto_status'){_ept($db);$t=date('Y-m-d');$a=$db->prepare("SELECT id,clock_in FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NULL ORDER BY id DESC LIMIT 1");$a->execute([$UID,$t]);$as=$a->fetch();$c=$db->prepare("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,clock_in,clock_out)),0)s FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NOT NULL");$c->execute([$UID,$t]);$cs=(int)$c->fetch()['s'];$j=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,8)h FROM usuarios WHERE id=?");$j->execute([$UID]);$jh=(int)($j->fetch()['h']??8);$wh=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,6)h FROM usuarios WHERE id=?");$wh->execute([$UID]);$wk=(int)($wh->fetch()['h']??6);jsonR(['date'=>$t,'user_id'=>$UID,'active'=>!!$as,'status'=>$as?'Ativo':'Pausado','active_since'=>$as?$as['clock_in']:null,'total_seconds'=>$cs,'worked_seconds'=>$cs,'clock_in'=>$as?$as['clock_in']:null,'work_hours'=>$wk,'jornada_hours'=>$jh]);}
-
-if($act==='ponto_today'){_ept($db);$t=date('Y-m-d');$a=$db->prepare("SELECT id,clock_in FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NULL ORDER BY id DESC LIMIT 1");$a->execute([$UID,$t]);$as=$a->fetch();$c=$db->prepare("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,clock_in,clock_out)),0)s FROM ponto_sessions WHERE user_id=? AND date=? AND clock_out IS NOT NULL");$c->execute([$UID,$t]);$cs=(int)$c->fetch()['s'];$j=$db->prepare("SELECT COALESCE(work_hours,jornada_hours,8)h FROM usuarios WHERE id=?");$j->execute([$UID]);$jh=(int)($j->fetch()['h']??8);jsonR(['date'=>$t,'user_id'=>$UID,'status'=>$as?'Ativo':'Pausado','active_since'=>$as?$as['clock_in']:null,'worked_seconds'=>$cs,'jornada_hours'=>$jh]);}
-if($act==='ponto_clock_in'){_ept($db);$t=date('Y-m-d');$n=date('Y-m-d H:i:s');$db->prepare("UPDATE ponto_sessions SET clock_out=? WHERE user_id=? AND date=? AND clock_out IS NULL")->execute([$n,$UID,$t]);$db->prepare("INSERT INTO ponto_sessions(user_id,date,clock_in)VALUES(?,?,?)")->execute([$UID,$t,$n]);jsonR(['success'=>true,'clock_in'=>$n]);}
-if($act==='ponto_clock_out'){_ept($db);$t=date('Y-m-d');$n=date('Y-m-d H:i:s');$u=$db->prepare("UPDATE ponto_sessions SET clock_out=? WHERE user_id=? AND date=? AND clock_out IS NULL");$u->execute([$n,$UID,$t]);if($u->rowCount()===0)jsonR(['error'=>'Nenhuma sessão ativa'],400);jsonR(['success'=>true,'clock_out'=>$n]);}
-if($act==='ponto_team_today'){_ept($db);$t=date('Y-m-d');$s=$db->prepare("SELECT u.id AS user_id,u.name,u.avatar_color,u.avatar_file,u.role,COALESCE(u.work_hours,u.jornada_hours,8)AS jornada_hours,IF(EXISTS(SELECT 1 FROM ponto_sessions p2 WHERE p2.user_id=u.id AND p2.date=? AND p2.clock_out IS NULL),'Ativo','Pausado')AS status,COALESCE((SELECT SUM(TIMESTAMPDIFF(SECOND,p3.clock_in,p3.clock_out))FROM ponto_sessions p3 WHERE p3.user_id=u.id AND p3.date=? AND p3.clock_out IS NOT NULL),0)AS worked_seconds FROM usuarios u WHERE u.active=1 ORDER BY u.name");$s->execute([$t,$t]);jsonR($s->fetchAll(PDO::FETCH_ASSOC));}
-if($act==='ponto_history'){_ept($db);$u2=isset($_GET['user_id'])&&$IS_ADMIN?(int)$_GET['user_id']:$UID;$fr=$_GET['from']??date('Y-m-01');$to=$_GET['to']??date('Y-m-d');try{$d=$db->prepare("SELECT ps.date,COALESCE(u.work_hours,8)jh,SUM(TIMESTAMPDIFF(SECOND,ps.clock_in,COALESCE(ps.clock_out,NOW())))ws FROM ponto_sessions ps JOIN usuarios u ON ps.user_id=u.id WHERE ps.user_id=? AND ps.date BETWEEN ? AND ? GROUP BY ps.date,u.work_hours ORDER BY ps.date DESC");$d->execute([$u2,$fr,$to]);$days=$d->fetchAll(PDO::FETCH_ASSOC);}catch(Exception $ex){$d2=$db->prepare("SELECT ps.date,SUM(TIMESTAMPDIFF(SECOND,ps.clock_in,COALESCE(ps.clock_out,NOW())))ws FROM ponto_sessions ps WHERE ps.user_id=? AND ps.date BETWEEN ? AND ? GROUP BY ps.date ORDER BY ps.date DESC");$d2->execute([$u2,$fr,$to]);$days=array_map(function($r){$r['jh']=8;return $r;},$d2->fetchAll(PDO::FETCH_ASSOC));}$s2=$db->prepare("SELECT date,clock_in,clock_out FROM ponto_sessions WHERE user_id=? AND date BETWEEN ? AND ? ORDER BY date DESC,clock_in ASC");$s2->execute([$u2,$fr,$to]);$sm=[];foreach($s2->fetchAll(PDO::FETCH_ASSOC)as $r)$sm[$r['date']][]=$r;$res=[];foreach($days as $dx){$jS=(int)($dx['jh']??8)*3600;$wS=(int)($dx['ws']??0);$res[]=['date'=>$dx['date'],'user_id'=>$u2,'jornada_hours'=>(int)($dx['jh']??8),'worked_seconds'=>$wS,'balance_seconds'=>$wS-$jS,'sessions'=>$sm[$dx['date']]??[]];}jsonR($res);}
-
-if($act==='ponto_folga'){_ept($db);if($method==='GET'){$fr=$_GET['from']??date('Y-m-01');$to=$_GET['to']??date('Y-m-d');$q=$db->prepare("SELECT f.*,u.name AS user_name,c.name AS created_by_name FROM ponto_folgas f JOIN usuarios u ON f.user_id=u.id JOIN usuarios c ON f.created_by=c.id WHERE f.date BETWEEN ? AND ? ORDER BY f.date DESC,u.name ASC");$q->execute([$fr,$to]);jsonR($q->fetchAll(PDO::FETCH_ASSOC));}if($method==='POST'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);$b=json_decode(file_get_contents('php://input'),true)??[];$u3=(int)($b['user_id']??0);$dt=$b['date']??'';$tp=$b['tipo']??'Folga';$ob=$b['obs']??'';if(!$u3||!$dt)jsonR(['error'=>'Obrigatórios: user_id e date'],400);$db->prepare("INSERT INTO ponto_folgas(user_id,date,tipo,obs,created_by)VALUES(?,?,?,?,?)ON DUPLICATE KEY UPDATE tipo=VALUES(tipo),obs=VALUES(obs),created_by=VALUES(created_by)")->execute([$u3,$dt,$tp,$ob,$UID]);jsonR(['success'=>true]);}if($method==='DELETE'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);$id2=(int)($_GET['id']??0);if(!$id2)jsonR(['error'=>'id obrigatório'],400);$db->prepare("DELETE FROM ponto_folgas WHERE id=?")->execute([$id2]);jsonR(['success'=>true]);}jsonR(['error'=>'Método não suportado'],405);}
-if($act==='ponto_edit'){if(!$IS_ADMIN)jsonR(['error'=>'Sem permissão'],403);_ept($db);$b=json_decode(file_get_contents('php://input'),true)??[];$id=(int)($b['id']??0);if(!$id)jsonR(['error'=>'id obrigatório'],400);$db->prepare("UPDATE ponto_sessions SET clock_in=COALESCE(?,clock_in),clock_out=? WHERE id=?")->execute([$b['clock_in']??null,$b['clock_out']??null,$id]);jsonR(['success'=>true]);}
-
 // ===== 404 FALLBACK =====
 jsonR(['error'=>'Endpoint não encontrado'],404);
 
-
-// ============================================================
-// ============================================================
 } catch (Exception $e) {
     jsonR(['error'=>'Erro interno: '.$e->getMessage()],500);
 }
-// ============================================================
-// ============================================================
