@@ -128,6 +128,17 @@ if(empty($_SESSION['_migrated'])){
         UNIQUE KEY uq_user_demand (user_id, demand_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");}catch(Exception $e){}
 
+    try{$db->exec("CREATE TABLE IF NOT EXISTS checklist_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        demand_id INT NOT NULL,
+        text VARCHAR(500) NOT NULL,
+        done TINYINT(1) DEFAULT 0,
+        sort_order INT DEFAULT 0,
+        created_by INT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME DEFAULT NULL,
+        INDEX idx_demand (demand_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");}catch(Exception $e){}
     $_SESSION["_migrated"]=1;
     // Complexidade e métricas
     $metricCols = [
@@ -289,7 +300,7 @@ if($act==='demandas'){
         if(!empty($_GET['date_from'])){ $w[]='d.created_at>=?'; $p[]=$_GET['date_from'].' 00:00:00'; }
         if(!empty($_GET['date_to'])){ $w[]='d.created_at<=?'; $p[]=$_GET['date_to'].' 23:59:59'; }
 
-        $sql="SELECT d.*, s.name as system_name, s.technology as system_tech, s.url as system_url, s.github_url,
+        $sql="SELECT d.*,(SELECT COUNT(*) FROM checklist_items WHERE demand_id=d.id) as checklist_total,(SELECT COUNT(*) FROM checklist_items WHERE demand_id=d.id AND done=1) as checklist_done, s.name as system_name, s.technology as system_tech, s.url as system_url, s.github_url,
             c.name as creator_name, pa.name as approver_name, sp.name as sprint_name, sp.status as sprint_status
             FROM demandas d LEFT JOIN sistemas s ON d.system_id=s.id
             LEFT JOIN usuarios c ON d.created_by=c.id LEFT JOIN usuarios pa ON d.presidency_approved_by=pa.id
@@ -358,6 +369,7 @@ if($act==='demand'&&isset($_GET['id'])){
         $s=$db->prepare("SELECT di.*, u.name as uploader FROM imagens_demandas di LEFT JOIN usuarios u ON di.uploaded_by=u.id WHERE di.demand_id=? ORDER BY di.created_at DESC"); $s->execute([$id]); $dm['images']=$s->fetchAll();
         $s=$db->prepare("SELECT dc.*, u.name as user_name, u.avatar_color FROM comentarios_demandas dc LEFT JOIN usuarios u ON dc.user_id=u.id WHERE dc.demand_id=? ORDER BY dc.created_at ASC"); $s->execute([$id]); $dm['comments']=$s->fetchAll();
         $s=$db->prepare("SELECT dh.*, u.name as user_name FROM historico_demandas dh LEFT JOIN usuarios u ON dh.user_id=u.id WHERE dh.demand_id=? ORDER BY dh.created_at DESC"); $s->execute([$id]); $dm['history']=$s->fetchAll();
+        $s=$db->prepare("SELECT ci.*,u.name as creator_name FROM checklist_items ci LEFT JOIN usuarios u ON ci.created_by=u.id WHERE ci.demand_id=? ORDER BY ci.sort_order,ci.id");$s->execute([$id]);$dm['checklist']=$s->fetchAll();
         jsonR($dm);
     }
     if($method==='PUT'){
@@ -461,24 +473,13 @@ if($act==='demand_claim'&&isset($_GET['id'])){
     if(!$demRow) jsonR(['error'=>'Demanda não encontrada'],404);
     $chk=$db->prepare("SELECT acceptance FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chk->execute([$id,$UID]);
     $existing=$chk->fetch();
+    $d=json_decode(file_get_contents('php://input'),true);
     if($existing){
         if($existing['acceptance']==='Pendente'){
             $db->prepare("UPDATE devs_demandas SET acceptance='Aceita',assigned_at=NOW() WHERE demand_id=? AND user_id=?")->execute([$id,$UID]);
             $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,'Dev aceitou','Aceita')")->execute([$id,$UID]);
         }
         if(in_array($demRow['status'],['Aberta','Aguardando Aceite'])){
-            // Verificar limite de demandas simultâneas
-            $wlCheck = checkDevWorkLimit($db, $UID, $id);
-            if (!$wlCheck['allowed'] && !($d['multi_authorized']??false)) {
-                jsonR([
-                    'needs_multi_auth' => true,
-                    'active_count' => $wlCheck['count'],
-                    'active_demands' => $wlCheck['active_demands'],
-                    'demand_id' => $id,
-                    'demand_title' => $demRow['title'],
-                    'message' => 'Você já tem '.$wlCheck['count'].' demanda(s) em andamento. Justifique para solicitar autorização.'
-                ]);
-            }
             $db->prepare("UPDATE demandas SET status='Em Andamento', started_at=COALESCE(started_at,NOW()) WHERE id=?")->execute([$id]);
             $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,'Status alterado',?,'Em Andamento')")->execute([$id,$UID,$demRow['status']]);
             $admins=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%') AND active=1")->fetchAll();
@@ -495,7 +496,6 @@ if($act==='demand_claim'&&isset($_GET['id'])){
     }
     $others=$db->prepare("SELECT u.id,u.name FROM devs_demandas dd JOIN usuarios u ON dd.user_id=u.id WHERE dd.demand_id=?"); $others->execute([$id]);
     $otherDevs=$others->fetchAll();
-    $d=json_decode(file_get_contents('php://input'),true);
     $force=$d['force']??false;
     if(!empty($otherDevs)&&!$force){
         jsonR(['conflict'=>true,'devs'=>array_column($otherDevs,'name'),'message'=>'Esta demanda já tem devs atribuídos: '.implode(', ',array_column($otherDevs,'name')).'. Deseja continuar?']);
@@ -768,7 +768,9 @@ if($act==='departments'){
         if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
         $d=json_decode(file_get_contents('php://input'),true);
         $db->prepare("INSERT INTO departments (name,description) VALUES (?,?)")->execute([trim($d['name']??''),trim($d['description']??'')]);
-        jsonR(['success'=>true,'id'=>$db->lastInsertId()]);
+        $newId=$db->lastInsertId();
+        if(!empty($d['dev_ids'])){$db->prepare("UPDATE demandas SET status='Aguardando Aceite' WHERE id=? AND status='Aberta'")->execute([$newId]);}
+        jsonR(['success'=>true,'id'=>$newId]);
     }
 }
 if($act==='department'&&isset($_GET['id'])){
@@ -2203,6 +2205,42 @@ if($act==='multi_demand_pending'){
 
 
 // ===== 404 FALLBACK =====
+
+// ===== CHECKLIST =====
+if($act==='checklist'&&isset($_GET['demand_id'])){
+    $did=(int)$_GET['demand_id'];
+    if($method==='GET'){
+        $s=$db->prepare("SELECT ci.*,u.name as creator_name FROM checklist_items ci LEFT JOIN usuarios u ON ci.created_by=u.id WHERE ci.demand_id=? ORDER BY ci.sort_order,ci.id");
+        $s->execute([$did]);jsonR($s->fetchAll());
+    }
+    if($method==='POST'){
+        $d=json_decode(file_get_contents('php://input'),true);
+        $text=trim($d['text']??'');if(!$text)jsonR(['error'=>'Texto obrigatório'],400);
+        $maxOrder=$db->prepare("SELECT COALESCE(MAX(sort_order),0)+1 FROM checklist_items WHERE demand_id=?");$maxOrder->execute([$did]);$order=$maxOrder->fetchColumn();
+        $db->prepare("INSERT INTO checklist_items(demand_id,text,sort_order,created_by)VALUES(?,?,?,?)")->execute([$did,$text,$order,$UID]);
+        jsonR(['success'=>true,'id'=>$db->lastInsertId()]);
+    }
+}
+if($act==='checklist_toggle'&&isset($_GET['id'])){
+    $cid=(int)$_GET['id'];
+    $item=$db->prepare("SELECT * FROM checklist_items WHERE id=?");$item->execute([$cid]);$row=$item->fetch();
+    if(!$row)jsonR(['error'=>'Item não encontrado'],404);
+    $newDone=$row['done']?0:1;
+    $completedAt=$newDone?date('Y-m-d H:i:s'):null;
+    $db->prepare("UPDATE checklist_items SET done=?,completed_at=? WHERE id=?")->execute([$newDone,$completedAt,$cid]);
+    jsonR(['success'=>true,'done'=>$newDone]);
+}
+if($act==='checklist_delete'&&isset($_GET['id'])){
+    $db->prepare("DELETE FROM checklist_items WHERE id=?")->execute([(int)$_GET['id']]);
+    jsonR(['success'=>true]);
+}
+if($act==='checklist_reorder'&&isset($_GET['demand_id'])){
+    $d=json_decode(file_get_contents('php://input'),true);
+    $ids=$d['ids']??[];
+    foreach($ids as $i=>$cid){$db->prepare("UPDATE checklist_items SET sort_order=? WHERE id=? AND demand_id=?")->execute([$i,(int)$cid,(int)$_GET['demand_id']]);}
+    jsonR(['success'=>true]);
+}
+
 jsonR(['error'=>'Endpoint não encontrado'],404);
 
 
