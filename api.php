@@ -176,7 +176,7 @@ if($act==='me'){ $u=getCurrentUser(); if(!$u) jsonR(['error'=>'Não autenticado'
 if(!isLoggedIn()) jsonR(['error'=>'Não autenticado'],401);
 $ME=getCurrentUser(); if(!$ME) jsonR(['error'=>'Usuário inválido'],401);
 $UID=$ME['id']; $ROLE=$ME['role'];
-$IS_ADMIN=strpos($ROLE,'admin')!==false; $IS_PRES=strpos($ROLE,'presidencia')!==false; $IS_DEV=strpos($ROLE,'dev')!==false; $IS_USER=$ROLE==='usuario'; $IS_DIR=strpos($ROLE,'diretor')!==false;
+$IS_ADMIN=strpos($ROLE,'admin')!==false; $IS_PRES=strpos($ROLE,'presidencia')!==false; $IS_DEV=strpos($ROLE,'dev')!==false||strpos($ROLE,'analista')!==false; $IS_USER=$ROLE==='usuario'; $IS_DIR=strpos($ROLE,'diretor')!==false;
 $ROLES=array_map('trim',explode(',',$ROLE));
 function meHasRole($r){global $ROLES;if(is_array($r))return count(array_intersect($ROLES,$r))>0;return in_array($r,$ROLES);}
 $IS_ELEVATED=$IS_ADMIN||$IS_PRES||$IS_DIR;
@@ -1319,7 +1319,7 @@ if($act==='team_realtime'){
 }
 
 if($act==='dev_list'){
-    $s=$db->query("SELECT id,name,avatar_color,avatar_file,role,work_hours FROM usuarios WHERE active=1 AND role LIKE '%dev%' ORDER BY name");
+    $s=$db->query("SELECT id,name,avatar_color,avatar_file,role,work_hours FROM usuarios WHERE active=1 AND (role LIKE '%dev%' OR role LIKE '%analista%' OR role LIKE '%diretor%') ORDER BY name");
     jsonR($s->fetchAll());
 }
 if($act==='all_users_list'){

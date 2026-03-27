@@ -8,14 +8,14 @@ function setCpx(el){
   if(fill) fill.style.width=(idx/3*100)+'%';
 }
 // Inject permissions panel styles
-(function(){var s=document.createElement('style');s.textContent='.perm-wrap{margin-top:12px;animation:fadeIn .2s ease}.perm-panel{background:var(--bg2);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.25)}.perm-ph{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 18px;background:var(--bg3);border-bottom:1px solid var(--brd)}.perm-ph-title{font-weight:700;font-size:14px;color:var(--t1)}.perm-rb{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px}.prb-admin{background:#ef444422;color:#ef4444;border:1px solid #ef444440}.prb-dev{background:#3b82f622;color:#3b82f6;border:1px solid #3b82f640}.prb-presidencia{background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b40}.prb-diretor{background:#8b5cf622;color:#8b5cf6;border:1px solid #8b5cf640}.perm-grp{padding:12px 18px;border-bottom:1px solid var(--brd)}.perm-grp-t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3);margin-bottom:8px}.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}.perm-it{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid var(--brd);transition:all .15s;user-select:none}.perm-it:hover{border-color:var(--acc)}.perm-it.on{background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.35)}.perm-it.off{opacity:.55}.perm-tog{width:28px;height:16px;border-radius:8px;flex-shrink:0;position:relative;transition:background .2s}.perm-it.on .perm-tog{background:var(--acc)}.perm-it.off .perm-tog{background:var(--bg4)}.perm-tog::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}.perm-it.on .perm-tog::after{transform:translateX(12px)}.perm-lbl{font-size:12px;font-weight:600;color:var(--t1)}.perm-desc{font-size:10px;color:var(--t3);margin-top:1px}.perm-foot{display:flex;gap:8px;padding:12px 18px;background:var(--bg3);border-top:1px solid var(--brd)}.perm-open{border-color:var(--acc)!important}@media(max-width:600px){.perm-grid{grid-template-columns:1fr 1fr}}';document.head.appendChild(s)})();
+(function(){var s=document.createElement('style');s.textContent='.perm-wrap{margin-top:12px;animation:fadeIn .2s ease}.perm-panel{background:var(--bg2);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.25)}.perm-ph{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 18px;background:var(--bg3);border-bottom:1px solid var(--brd)}.perm-ph-title{font-weight:700;font-size:14px;color:var(--t1)}.perm-rb{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px}.prb-admin{background:#ef444422;color:#ef4444;border:1px solid #ef444440}.prb-dev{background:#3b82f622;color:#3b82f6;border:1px solid #3b82f640}.prb-analista{background:#06b6d422;color:#06b6d4;border:1px solid #06b6d440}.prb-presidencia{background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b40}.prb-diretor{background:#8b5cf622;color:#8b5cf6;border:1px solid #8b5cf640}.perm-grp{padding:12px 18px;border-bottom:1px solid var(--brd)}.perm-grp-t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3);margin-bottom:8px}.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}.perm-it{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid var(--brd);transition:all .15s;user-select:none}.perm-it:hover{border-color:var(--acc)}.perm-it.on{background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.35)}.perm-it.off{opacity:.55}.perm-tog{width:28px;height:16px;border-radius:8px;flex-shrink:0;position:relative;transition:background .2s}.perm-it.on .perm-tog{background:var(--acc)}.perm-it.off .perm-tog{background:var(--bg4)}.perm-tog::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}.perm-it.on .perm-tog::after{transform:translateX(12px)}.perm-lbl{font-size:12px;font-weight:600;color:var(--t1)}.perm-desc{font-size:10px;color:var(--t3);margin-top:1px}.perm-foot{display:flex;gap:8px;padding:12px 18px;background:var(--bg3);border-top:1px solid var(--brd)}.perm-open{border-color:var(--acc)!important}@media(max-width:600px){.perm-grid{grid-template-columns:1fr 1fr}}';document.head.appendChild(s)})();
 
 // Inject report checkbox styles
 (function(){var s=document.createElement('style');s.textContent='/* ===== REPORT CHECKBOX FILTERS ===== */.rep-filter-section{margin-bottom:6px}.rep-filter-section>label{font-size:10px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px}.rep-cb-group{display:flex;flex-wrap:wrap;gap:4px}.rep-cb-item{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:var(--bg2);border:1px solid var(--brd);cursor:pointer;font-size:11px;color:var(--t2);transition:all .2s;user-select:none}.rep-cb-item:hover{border-color:var(--acc);background:var(--accg)}.rep-cb-item input[type="checkbox"]{width:14px;height:14px;accent-color:var(--acc);cursor:pointer;margin:0}.rep-cb-item.active{background:var(--accg);border-color:var(--acc);color:var(--acc);font-weight:600}.rep-filter-panel{background:var(--bg1);border:1px solid var(--brd);border-radius:10px;padding:14px;margin-bottom:16px}.rep-filter-panel .rep-filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:768px){.rep-filter-panel .rep-filter-grid{grid-template-columns:1fr}}.rep-filter-panel .filter-dates{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--brd)}.rep-filter-panel .filter-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)}.sla-info-box{background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:10px 14px;margin-top:10px;font-size:11px;color:var(--t3);line-height:1.5}.sla-info-box strong{color:var(--t2);font-weight:600}.chart-toggle-panel{background:var(--bg1);border:1px solid var(--brd);border-radius:10px;padding:12px 14px;margin-bottom:16px}.chart-toggle-panel>label{font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:8px}.chart-toggle-grid{display:flex;flex-wrap:wrap;gap:6px}.chart-toggle-item{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--brd);cursor:pointer;font-size:11px;color:var(--t2);transition:all .2s;user-select:none}.chart-toggle-item:hover{border-color:var(--acc)}.chart-toggle-item input[type="checkbox"]{width:14px;height:14px;accent-color:var(--acc);cursor:pointer;margin:0}.chart-toggle-item.active{background:var(--accg);border-color:var(--acc);color:var(--acc)}.rep-select-all{font-size:10px;color:var(--acc);cursor:pointer;margin-left:8px;text-decoration:underline}.rep-select-all:hover{color:var(--t1)}';document.head.appendChild(s)})();
 
 const MY_ROLES=(ME.role||'').split(',').map(r=>r.trim());
 function meHas(r){if(Array.isArray(r))return r.some(x=>MY_ROLES.includes(x));return MY_ROLES.includes(r)}
-const IS_ADMIN=meHas('admin'),IS_PRES=meHas('presidencia'),IS_DEV=meHas('dev'),IS_USER=ME.role==='usuario',IS_DIR=meHas('diretor');
+const IS_ADMIN=meHas('admin'),IS_PRES=meHas('presidencia'),IS_DEV=meHas('dev')||meHas('analista'),IS_USER=ME.role==='usuario',IS_DIR=meHas('diretor');
 let MY_PERMS=null;
 function hasPerm(key){
   if(IS_ADMIN&&!MY_PERMS)return true;
@@ -34,8 +34,7 @@ async function loadMyPerms(){
   }catch(e){MY_PERMS=null;}
 }
 function applyPerms(){
-  // Ocultar Ponto Digital temporariamente
-  document.querySelectorAll('.sb-i[data-page="ponto"]').forEach(el=>el.style.display='none');
+  // Ponto Digital ativo
   const map={
     dashboard:'view_dashboard',kanban:'view_kanban',calendario:'view_calendario',
     sprints:'view_sprints',demandas:'view_demandas',avisos:'view_avisos',
@@ -92,7 +91,7 @@ lock_lg:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="cur
 file:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'};
 const IC_CROWN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M2 20h20"/><path d="M4 20V10l4 4 4-8 4 8 4-4v10"/></svg>';
 const TECH_LIST=['PHP','MySQL','JavaScript','jQuery','Bootstrap','CSS','HTML','React','Node.js','Vue.js','Angular','TypeScript','Python','Laravel','Docker','API REST','JSON','Git','Apache','Nginx','Redis','MongoDB','PostgreSQL','Tailwind','Sass','WordPress','Low Code','Photoprisma','QR Code','GPS','Cron','Vercel','Firebase','AWS','Linux','Flutter','Kotlin','Swift','C#','.NET','Java','Go','Rust'];
-const ROLE_LABELS={admin:'Administrador',dev:'Desenvolvedor',presidencia:'Presidência',diretor:'Diretor',usuario:'Usuário'};
+const ROLE_LABELS={admin:'Administrador',dev:'Desenvolvedor',analista:'Analista de Dados',presidencia:'Presidência',diretor:'Diretor',usuario:'Usuário'};
 let calMonth=new Date().toISOString().slice(0,7);
 let calMineState=(typeof IS_DEV!=='undefined'&&IS_DEV&&!IS_ADMIN&&!IS_DIR)?true:false;
 let chartInstances={};
@@ -115,7 +114,7 @@ function presClass(s){return'pres-'+{'Pendente':'pendente','Aprovada':'aprovada'
 function devsHtml(devs){if(!devs||!devs.length)return'—';return`<div class="devs-row">${devs.map(d=>`<div class="dev-tag">${av(d.name,d.avatar_color,22,d.avatar_file,d.role)}</div>`).join('')}</div>`}
 function acceptBadge(devs){if(!devs||!devs.length)return'—';const p=devs.filter(d=>d.acceptance==='Pendente').length;const a=devs.filter(d=>d.acceptance==='Aceita').length;const r=devs.filter(d=>d.acceptance==='Recusada').length;if(r>0)return`<span class="badge accept-recusada">${r} recusou</span>`;if(p>0)return`<span class="badge accept-pendente">${p} pendente</span>`;return`<span class="badge accept-aceita">${IC.check} Aceito</span>`}
 let miniPTimer=null;
-function showMiniProfile(e,el){clearTimeout(miniPTimer);const mp=document.getElementById('mini-profile');if(!mp)return;const n=el.dataset.uname||'';const r=el.dataset.urole||'';const c=el.dataset.ucolor||'#666';const af=el.dataset.uavatar||'';const roleLabels={admin:'Administrador',dev:'Desenvolvedor',diretor:'Diretor',presidencia:'Presidência',usuario:'Usuário'};const roles=r.split(',').map(x=>x.trim()).filter(Boolean);const badges=roles.map(x=>`<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:${{admin:'#ef444433',dev:'#3b82f633',diretor:'#8b5cf633',presidencia:'#f59e0b33',usuario:'#6b728033'}[x]||'#66666633'};color:${{admin:'#ef4444',dev:'#3b82f6',diretor:'#8b5cf6',presidencia:'#f59e0b',usuario:'#6b7280'}[x]||'#999'}">${roleLabels[x]||x}</span>`).join(' ');const avHtml=af?`<img src="api.php?action=arquivo&f=${af}" style="width:48px;height:48px;border-radius:50%;object-fit:cover">`:`<div style="width:48px;height:48px;border-radius:50%;background:${c};display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:20px">${(n||'?')[0]}</div>`;mp.innerHTML=`<div style="display:flex;align-items:center;gap:10px"><div style="flex-shrink:0;border-radius:50%;box-shadow:0 0 0 3px ${c}44">${avHtml}</div><div><div style="font-weight:700;font-size:13px;color:var(--t1)">${esc(n)}</div><div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${badges}</div></div></div>`;const rect=el.getBoundingClientRect();let top=rect.bottom+6;let left=rect.left;if(top+100>window.innerHeight)top=rect.top-110;if(left+200>window.innerWidth)left=window.innerWidth-210;mp.style.top=top+'px';mp.style.left=left+'px';mp.classList.add('show')}
+function showMiniProfile(e,el){clearTimeout(miniPTimer);const mp=document.getElementById('mini-profile');if(!mp)return;const n=el.dataset.uname||'';const r=el.dataset.urole||'';const c=el.dataset.ucolor||'#666';const af=el.dataset.uavatar||'';const roleLabels={admin:'Administrador',dev:'Desenvolvedor',analista:'Analista de Dados',diretor:'Diretor',presidencia:'Presidência',usuario:'Usuário'};const roles=r.split(',').map(x=>x.trim()).filter(Boolean);const badges=roles.map(x=>`<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:${{admin:'#ef444433',dev:'#3b82f633',analista:'#06b6d433',diretor:'#8b5cf633',presidencia:'#f59e0b33',usuario:'#6b728033'}[x]||'#66666633'};color:${{admin:'#ef4444',dev:'#3b82f6',analista:'#06b6d4',diretor:'#8b5cf6',presidencia:'#f59e0b',usuario:'#6b7280'}[x]||'#999'}">${roleLabels[x]||x}</span>`).join(' ');const avHtml=af?`<img src="api.php?action=arquivo&f=${af}" style="width:48px;height:48px;border-radius:50%;object-fit:cover">`:`<div style="width:48px;height:48px;border-radius:50%;background:${c};display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:20px">${(n||'?')[0]}</div>`;mp.innerHTML=`<div style="display:flex;align-items:center;gap:10px"><div style="flex-shrink:0;border-radius:50%;box-shadow:0 0 0 3px ${c}44">${avHtml}</div><div><div style="font-weight:700;font-size:13px;color:var(--t1)">${esc(n)}</div><div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${badges}</div></div></div>`;const rect=el.getBoundingClientRect();let top=rect.bottom+6;let left=rect.left;if(top+100>window.innerHeight)top=rect.top-110;if(left+200>window.innerWidth)left=window.innerWidth-210;mp.style.top=top+'px';mp.style.left=left+'px';mp.classList.add('show')}
 function hideMiniProfile(){miniPTimer=setTimeout(()=>{const mp=document.getElementById('mini-profile');if(mp)mp.classList.remove('show')},200)}
 
 function toggleDesc(btn){const w=btn.previousElementSibling;const p=w.querySelector('#desc-full');const f=w.querySelector('#desc-fade');if(p.style.maxHeight==='none'){p.style.maxHeight='100px';p.style.overflow='hidden';f.style.display='';btn.textContent='\u25BC Ver mais'}else{p.style.maxHeight='none';p.style.overflow='visible';f.style.display='none';btn.textContent='\u25B2 Ver menos'}}
@@ -126,7 +125,7 @@ document.querySelectorAll('.modal-o').forEach(o=>o.addEventListener('click',e=>{
 const pageInfo={dashboard:['Dashboard','Visão geral'],kanban:['Kanban','Gestão visual'],demandas:['Demandas','Lista completa'],calendario:['Calendário','Entregas e prazos'],sprints:['Sprints','Ciclos de desenvolvimento'],avisos:['Quadro de Avisos','Comunicados'],reunioes:['Reuniões','Agenda'],notificacoes:['Notificações','Todas as notificações'],sistemas:['Sistemas','Catálogo ASSEGO'],devs:['Desenvolvedores','Equipe'],perfil:['Meu Perfil','Dados e senha'],ponto:['Ponto Digital','Controle de jornada'],usuarios:['Usuários','Gerenciamento de contas'],solicitacoes:['Solicitações','Melhorias sugeridas'],relatorios:['Relatórios','Análise e diagnósticos'],docs:['Documentações','Gestão de documentos'],aprovacoes:['Aprovações','Presidência'],auditoria:['Auditoria','Registro de ações'],ponto:['Ponto Digital','Controle de jornada']};
 document.querySelectorAll('.sb-i[data-page]').forEach(el=>el.addEventListener('click',()=>showPage(el.dataset.page)));
 function showPage(pg){
-  if(pg==='ponto'){showToast('⏸ Ponto Digital temporariamente desativado');return;}
+  // Ponto Digital ativo
   const permMap={dashboard:'view_dashboard',kanban:'view_kanban',calendario:'view_calendario',sprints:'view_sprints',demandas:'view_demandas',avisos:'view_avisos',reunioes:'view_reunioes',sistemas:'view_sistemas',devs:'view_devs',relatorios:'view_relatorios',auditoria:'view_auditoria',docs:'view_docs',aprovacoes:'view_aprovacoes',solicitacoes:'view_solicitacoes'};
   const reqPerm=permMap[pg];
   if(reqPerm&&!hasPerm(reqPerm)){showToast?showToast('⛔ Sem permissão para acessar esta página'):alert('Sem permissão');return;}
@@ -292,6 +291,52 @@ if(editId&&body.needs_presidency_approval){await api('demand_resubmit',{method:'
 let _upOk=0,_upFail=[];for(const f of pendingFiles){if(f.size===0){_upFail.push(f.name);continue}try{const fd=new FormData();fd.append('image',f);const r=await api('demand_upload',{params:{id:did},formData:fd});if(r&&r.error){_upFail.push(f.name)}else{_upOk++}}catch(e){_upFail.push(f.name)}}pendingFiles=[];closeM('m-demand');if(_upFail.length){showToast('⚠️ Falha ao enviar '+_upFail.length+' arquivo(s): '+_upFail.join(', '),5000)}if(_upOk>0){showToast('✅ Demanda salva com '+_upOk+' arquivo(s)!')}else{showToast('✅ Demanda salva!')}loadPage(getCurrentPage())}finally{_saving=false}}
 async function deleteDemand(id){if(!confirm('Excluir #'+id+'?'))return;await api('demand',{method:'DELETE',params:{id}});loadPage(getCurrentPage())}
 
+
+// Calcular tempo útil de trabalho (6h/dia, seg-sex)
+function calcWorkTime(startDate, endDate){
+  const s=new Date(startDate), e=endDate?new Date(endDate):new Date();
+  if(isNaN(s)||isNaN(e))return'—';
+  const WORK_H=6;
+  // Mesmo dia?
+  const sameDay=s.toDateString()===e.toDateString();
+  if(sameDay){
+    const diffMin=Math.round((e-s)/60000);
+    const maxMin=WORK_H*60;
+    const mins=Math.min(diffMin,maxMin);
+    if(mins<=0)return'agora';
+    const h=Math.floor(mins/60),m=mins%60;
+    return h>0?h+'h '+m+'min':m+'min';
+  }
+  // Dias diferentes: contar dias uteis completos entre inicio e fim
+  let totalMin=0;
+  const cur=new Date(s);cur.setHours(0,0,0,0);
+  const endDay=new Date(e);endDay.setHours(0,0,0,0);
+  // Dia de inicio: horas restantes no dia (de startHour ate fim do expediente)
+  if(cur.getDay()!==0&&cur.getDay()!==6){
+    const startHrs=s.getHours()+(s.getMinutes()/60);
+    const worked=Math.max(0,WORK_H-Math.min(startHrs,WORK_H));
+    totalMin+=Math.round(worked*60);
+  }
+  cur.setDate(cur.getDate()+1);
+  // Dias intermediarios: 6h cada
+  while(cur<endDay){
+    if(cur.getDay()!==0&&cur.getDay()!==6) totalMin+=WORK_H*60;
+    cur.setDate(cur.getDate()+1);
+  }
+  // Dia final: horas trabalhadas ate agora
+  if(endDay.getDay()!==0&&endDay.getDay()!==6){
+    const endHrs=Math.min(e.getHours()+(e.getMinutes()/60),WORK_H);
+    totalMin+=Math.round(endHrs*60);
+  }
+  if(totalMin<=0)totalMin=Math.round((e-s)/60000);
+  const d=Math.floor(totalMin/(WORK_H*60));
+  const h=Math.floor((totalMin%(WORK_H*60))/60);
+  const m=totalMin%(60);
+  if(d>0)return d+'d '+h+'h';
+  if(h>0)return h+'h '+m+'min';
+  return m+'min';
+}
+
 // ===== DETAIL =====
 const WF_STEPS=[{key:'Aberta',label:'Aberta',desc:'Sem dev'},{key:'Aguardando Aceite',label:'Aceite',desc:'Devs designados'},{key:'Em Andamento',label:'Desenvolvimento',desc:'Em progresso'},{key:'Em Revisão',label:'Revisão',desc:'Admin valida'},{key:'Concluída',label:'Concluída',desc:'Entregue'}];
 
@@ -357,7 +402,9 @@ if(blocked){
     }
 } else if(d.status==='Em Revisão'){
     if(IS_ADMIN||IS_DIR){
-        statusHtml=`<div style="display:flex;flex-direction:column;gap:8px"><p style="font-size:11px;color:var(--t3);margin:0">Esta demanda aguarda sua análise.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ok btn-sm" onclick="changeStatus(${d.id},'Concluída')">${IC.check} Aprovar e Concluir</button><button class="btn btn-d btn-sm" onclick="returnToDevPrompt(${d.id})">↩ Devolver para Ajustes</button><button class="btn btn-g btn-sm" onclick="changeStatus(${d.id},'Cancelada')">Cancelar</button></div></div>`;
+        const _reviewAge=d.review_at?Math.floor((Date.now()-new Date(d.review_at).getTime())/3600000):0;
+        const _reviewLate=_reviewAge>24;
+        statusHtml=`<div style="display:flex;flex-direction:column;gap:8px">${_reviewLate?`<div style="display:flex;align-items:center;gap:6px;padding:8px 12px;background:rgba(239,68,68,.08);border:1px solid var(--err);border-radius:var(--r);font-size:11px;color:var(--err);font-weight:600">${IC.alert} Revisão atrasada! Enviada há ${Math.floor(_reviewAge/24)}d ${_reviewAge%24}h (prazo: 1 dia útil)</div>`:`<p style="font-size:11px;color:var(--t3);margin:0">Esta demanda aguarda sua análise.${d.review_at?' Enviada '+timeAgo(d.review_at)+' atrás.':''}</p>`}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ok btn-sm" onclick="changeStatus(${d.id},'Concluída')">${IC.check} Aprovar e Concluir</button><button class="btn btn-d btn-sm" onclick="returnToDevPrompt(${d.id})">↩ Devolver para Ajustes</button><button class="btn btn-g btn-sm" onclick="changeStatus(${d.id},'Cancelada')">Cancelar</button></div></div>`;
     } else {
         statusHtml='';
     }
@@ -375,7 +422,7 @@ if(blocked){
         nextSteps.forEach(s=>{if(s==='Em Revisão'){btns.push(`<button class="btn btn-sm btn-p" onclick="openReviewModal(${d.id})">${labels[s]||s}</button>`)}else{btns.push(`<button class="btn btn-sm ${s==='Cancelada'?'btn-d':'btn-p'}" onclick="changeStatus(${d.id},'${s}')">${labels[s]||s}</button>`)}});
     }
     // Dev actions (unified)
-    if(meHas('dev')){
+    if(IS_DEV){
         const _myDev=(d.devs||[]).find(x=>x.user_id==ME.id);
         const _myAccepted=_myDev&&_myDev.acceptance==='Aceita';
         if(_myAccepted&&d.status==='Em Andamento'&&!btns.some(b=>b.includes('Revisão'))){
@@ -386,7 +433,7 @@ if(blocked){
         }
     }
     // Assumir/Recusar para devs
-    if(meHas('dev')&&!presPending&&!blocked){
+    if(IS_DEV&&!presPending&&!blocked){
       const myAssign2=(d.devs||[]).find(x=>x.user_id==ME.id);
       if(myAssign2&&myAssign2.acceptance==='Pendente'){
         btns.push(`<button class="btn btn-sm btn-ok" onclick="claimDemand(${d.id})">${IC.check} Assumir Demanda</button>`);
@@ -425,7 +472,7 @@ ${d.approver_name?`<div class="det-info-item"><span class="det-info-label">Aprov
 ${d.from_solicitation_id?`<div class="det-info-item"><span class="det-info-label">Origem</span><span class="det-info-val">Solicitação #${d.from_solicitation_id}</span></div>`:''}
 ${d.sprint_name?`<div class="det-info-item"><span class="det-info-label">Sprint</span><span class="det-info-val"><span class="sprint-bar" style="display:inline-flex;margin:0"><span class="sp-dot"></span>${esc(d.sprint_name)}</span></span></div>`:''}
 <div class="det-info-item"><span class="det-info-label">Complexidade</span><span class="det-info-val">${d.complexity||'Moderada'}</span></div>
-${d.started_at&&(d.review_at||d.completed_at)?`<div class="det-info-item"><span class="det-info-label">${d.completed_at?'Tempo Total':'Tempo Execução'}</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#10b981">${(()=>{const s=new Date(d.started_at),e=new Date(d.review_at||d.completed_at),diff=Math.abs(e-s),days=Math.floor(diff/864e5),hrs=Math.floor((diff%864e5)/36e5),mins=Math.floor((diff%36e5)/6e4);return days>0?days+'d '+hrs+'h':hrs>0?hrs+'h '+mins+'min':mins+'min'})()}</span></div>`:d.started_at?`<div class="det-info-item"><span class="det-info-label">Em execução há</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f59e0b">${(()=>{const s=new Date(d.started_at),diff=Math.abs(new Date()-s),days=Math.floor(diff/864e5),hrs=Math.floor((diff%864e5)/36e5),mins=Math.floor((diff%36e5)/6e4);return days>0?days+'d '+hrs+'h':hrs>0?hrs+'h '+mins+'min':mins+'min'})()}</span></div>`:''}
+${d.started_at&&(d.review_at||d.completed_at)?`<div class="det-info-item"><span class="det-info-label">${d.completed_at?'Tempo Total':'Tempo Execução'}</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#10b981">${calcWorkTime(d.started_at,d.review_at||d.completed_at)}</span></div>`:d.started_at?`<div class="det-info-item"><span class="det-info-label">Em execução há</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f59e0b">${calcWorkTime(d.started_at)}</span></div>`:''}
 </div></div>
 <div class="det-sec"><div class="det-sec-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Desenvolvedores</div>${devsDetail||'<span style="font-size:11px;color:var(--t3)">Nenhum dev atribuído</span>'}${delegateHtml}</div>
 ${d.description?`<div class="det-sec"><div class="det-sec-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Checklist</div><div id="checklist-${d.id}"><div style="text-align:center;padding:10px;color:var(--t3);font-size:11px">Carregando...</div></div></div>
@@ -532,18 +579,14 @@ const ua=document.getElementById('upload-area');if(ua){ua.addEventListener('drag
 // ===== PONTO DIGITAL =====
 var _pontoActive=false,_pontoTotalSec=0,_pontoWorkHours=6,_pontoClockIn=null;
 
-async function initPonto(){ return; // DESATIVADO TEMPORARIAMENTE
+async function initPonto(){
   const st=await api('ponto_status');
   if(!st)return;
   _pontoWorkHours=st.work_hours||6;
   _pontoTotalSec=st.total_seconds||0;
   _pontoActive=st.active;
   _pontoClockIn=st.clock_in;
-  // Auto clock-in se nao tem sessao aberta
-  if(!st.active){
-    const r=await api('ponto_clock_in',{method:'POST'});
-    if(r?.success){_pontoActive=true;_pontoClockIn=r.clock_in}
-  }
+  // Sem auto clock-in — usuário controla manualmente
   updatePontoUI();
 }
 
@@ -587,7 +630,7 @@ async function togglePonto(){
     if(r?.success){_pontoActive=false;showToast('⏸ Ponto pausado')}
   }else{
     const r=await api('ponto_clock_in',{method:'POST'});
-    if(r?.success){_pontoActive=true;_pontoClockIn=r.clock_in;showToast('▶ Ponto retomado')}
+    if(r?.success){_pontoActive=true;_pontoClockIn=r.clock_in;window._pontoOvertimeAsked=false;showToast('▶ Ponto retomado')}
   }
   updatePontoUI();
 }
@@ -688,15 +731,57 @@ async function loadPonto(){
 }
 
 function editPontoSession(id,clockIn,clockOut,note){
-  const ci=prompt('Entrada (YYYY-MM-DD HH:MM:SS):',clockIn);
-  if(ci===null)return;
-  const co=prompt('Saída (YYYY-MM-DD HH:MM:SS ou vazio):',clockOut);
-  if(co===null)return;
-  const n=prompt('Observação:',note);
-  api('ponto_edit',{method:'POST',body:{id,clock_in:ci,clock_out:co||null,note:n||null}}).then(r=>{
-    if(r?.success){showToast('✅ Ponto editado');loadPonto()}
-    else showToast('⚠️ '+(r?.error||'Erro'));
-  });
+  let mo=document.getElementById('m-ponto-edit');
+  if(!mo){
+    mo=document.createElement('div');
+    mo.id='m-ponto-edit';
+    mo.className='modal-o';
+    mo.innerHTML='<div class="modal" style="max-width:440px"><div class="modal-h"><h3>Editar Registro de Ponto</h3><button class="modal-x" onclick="closeM(\'m-ponto-edit\')">×</button></div><div class="modal-b" id="pe-body"></div><div class="modal-f" id="pe-foot"></div></div>';
+    document.body.appendChild(mo);
+  }
+
+  const ciDate=clockIn?clockIn.substring(0,10):'';
+  const ciTime=clockIn?clockIn.substring(11,16):'';
+  const coTime=clockOut?clockOut.substring(11,16):'';
+
+  document.getElementById('pe-body').innerHTML=
+    '<input type="hidden" id="pe-id" value="'+(id||'')+'">'+
+    '<div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:16px">'+
+    '<div style="font-size:11px;color:var(--t3);margin-bottom:4px">Data do registro</div>'+
+    '<div style="font-size:15px;font-weight:700;color:var(--t1)">'+(ciDate?ciDate.split('-').reverse().join('/'):'—')+'</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+    '<div class="fg"><label style="font-size:11px;font-weight:600">Entrada</label>'+
+    '<input type="time" id="pe-ci" class="fsel" value="'+ciTime+'" step="60" style="font-size:14px;font-family:\'JetBrains Mono\',monospace"></div>'+
+    '<div class="fg"><label style="font-size:11px;font-weight:600">Saída <span style="font-weight:400;color:var(--t3)">(vazio = ativa)</span></label>'+
+    '<input type="time" id="pe-co" class="fsel" value="'+coTime+'" step="60" style="font-size:14px;font-family:\'JetBrains Mono\',monospace"></div>'+
+    '</div>'+
+    '<div class="fg" style="margin-top:12px"><label style="font-size:11px;font-weight:600">Observação</label>'+
+    '<input id="pe-note" class="fsel" placeholder="Ex: Ajuste manual, esqueci de bater..." value="'+esc(note||'')+'"></div>'+
+    '<input type="hidden" id="pe-date" value="'+ciDate+'">';
+
+  document.getElementById('pe-foot').innerHTML=
+    '<button class="btn btn-g" onclick="closeM(\'m-ponto-edit\')">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="savePontoEdit()">Salvar</button>';
+
+  openM('m-ponto-edit');
+}
+
+async function savePontoEdit(){
+  const id=document.getElementById('pe-id').value;
+  const date=document.getElementById('pe-date').value;
+  const ci=document.getElementById('pe-ci').value;
+  const co=document.getElementById('pe-co').value;
+  const note=document.getElementById('pe-note').value.trim();
+
+  const clockIn=ci?(date+' '+ci+':00'):null;
+  const clockOut=co?(date+' '+co+':00'):null;
+
+  if(!clockIn){showToast('Entrada obrigatória');return;}
+
+  const r=await api('ponto_edit',{method:'POST',body:{id:+id,clock_in:clockIn,clock_out:clockOut,note:note||null}});
+  if(r?.success){showToast('✅ Ponto editado');closeM('m-ponto-edit');loadPonto();}
+  else showToast('⚠️ '+(r?.error||'Erro'));
 }
 
 // ===== NOTICES =====
@@ -735,7 +820,7 @@ async function editSystem(id){const sys=await api('systems')||[];const s=sys.fin
 async function saveSystem(){const eid=document.getElementById('s-edit-id').value;const selTechs=[...document.querySelectorAll('#s-tech-list input:checked')].map(c=>c.value);const body={name:document.getElementById('s-name').value.trim(),description:document.getElementById('s-desc').value.trim(),technology:selTechs.join(','),status:document.getElementById('s-status').value,url:document.getElementById('s-url').value.trim(),github_url:document.getElementById('s-github').value.trim(),department:document.getElementById('s-dept').value.trim(),dev_ids:getCheckedIds('s-devs')};if(!body.name)return alert('Nome obrigatório');if(eid)await api('system',{method:'PUT',params:{id:eid},body});else await api('systems',{method:'POST',body});closeM('m-system');await loadBaseData();loadSystems()}
 
 // ===== DEVS (admin only) =====
-async function loadDevs(){const users=await api('users')||[];const devUsers=users.filter(u=>(u.role||'').split(',').some(r=>['dev','diretor'].includes(r.trim())));const cards=[];for(const u of devUsers){const st=await api('user_stats',{params:{id:u.id}});cards.push(renderDevCard(u,st))}document.getElementById('devs-grid').innerHTML=cards.join('')}
+async function loadDevs(){const users=await api('users')||[];const devUsers=users.filter(u=>(u.role||'').split(',').some(r=>['dev','analista','diretor'].includes(r.trim())));const cards=[];for(const u of devUsers){const st=await api('user_stats',{params:{id:u.id}});cards.push(renderDevCard(u,st))}document.getElementById('devs-grid').innerHTML=cards.join('')}
 function renderDevCard(u,st){const sys=(st?.sistemas||[]).map(s=>`<span class="tag">${esc(s.name)}</span>`).join('');const roleLabels={admin:'Administrador',dev:'Desenvolvedor',diretor:'Diretor',presidencia:'Presidência',usuario:'Usuário'};const roleColors={admin:'#ef4444',dev:'#3b82f6',diretor:'#8b5cf6',presidencia:'#f59e0b',usuario:'#6b7280'};const roles=(u.role||'').split(',').map(r=>r.trim()).filter(Boolean);const badges=roles.map(r=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:${roleColors[r]||'#666'}22;color:${roleColors[r]||'#666'}">${roleLabels[r]||r}</span>`).join(' ');const avImg=u.avatar_file?`<img src="api.php?action=arquivo&f=${u.avatar_file}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`:(u.name||'?')[0];return`<div class="card dev-card" onclick="openDevDetail(${u.id})" style="cursor:pointer;transition:border-color .18s,box-shadow .18s,transform .15s" onmouseover="this.style.borderColor='var(--acc)';this.style.boxShadow='0 6px 24px rgba(0,0,0,.18)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='';this.style.boxShadow='';this.style.transform=''"><div class="big-av" style="background:${u.avatar_color||'#666'}">${avImg}</div><h4>${esc(u.name)}</h4><div style="margin:4px 0 12px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center">${badges}</div><div class="dev-stats"><div class="ds"><div class="ds-v" style="color:var(--warn)">${st?.ativas||0}</div><div class="ds-l">Ativas</div></div><div class="ds"><div class="ds-v" style="color:var(--ok)">${st?.concluidas||0}</div><div class="ds-l">Concluídas</div></div><div class="ds"><div class="ds-v" style="color:var(--acc)">${(st?.sistemas||[]).length}</div><div class="ds-l">Sistemas</div></div></div><div style="margin-top:10px;text-align:left"><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:700">Sistemas</div><div style="display:flex;flex-wrap:wrap;gap:3px">${sys||'—'}</div></div>${IS_ADMIN?`<div style="margin-top:12px"><button class="btn btn-g btn-sm" onclick="editUser(${u.id})">${IC.edit}</button></div>`:''}</div>`}
 function openUserModal(d){document.getElementById('m-user-t').textContent=d?'Editar':'Novo Usuário';document.getElementById('u-edit-id').value=d?.id||'';document.getElementById('u-name').value=d?.name||'';document.getElementById('u-email').value=d?.email||'';document.getElementById('u-pass').value='';document.getElementById('u-color').value=d?.avatar_color||'#3b82f6';document.getElementById('u-hours').value=d?.work_hours||6;const checks=document.querySelectorAll('#u-roles input[type=checkbox]');const roles=(d?.role||'dev').split(',').map(r=>r.trim());checks.forEach(cb=>{cb.checked=roles.includes(cb.value)});openM('m-user')}
 async function editUser(id){const users=await api('users')||[];const u=users.find(x=>x.id==id);if(u)openUserModal(u)}
@@ -999,7 +1084,7 @@ async function reviewSol(status){const id=document.getElementById('sr-id').value
 function loadScriptOnce(url){return new Promise((ok,fail)=>{if(document.querySelector('script[src="'+url+'"]'))return ok();const s=document.createElement('script');s.src=url;s.onload=ok;s.onerror=fail;document.head.appendChild(s)})}
 
 // ===== REPORT FILTER STATE =====
-var _repState={systems:[],devs:[],priorities:[],sprints:[],charts:['status','timeline','prod','avgdays','devprod','system','sla','workload','flow','bydev','bysys','working']};
+var _repState={systems:[],devs:[],priorities:[],sprints:[],charts:['status','timeline','prod','avgdays','devprod','system','sla','workload','flow','bydev','bysys','working','proximas']};
 var _repNeedsReload=false;
 function repGetState(){
   var el;
@@ -1008,7 +1093,7 @@ function repGetState(){
   el=document.querySelectorAll('input[name="rep-priority"]:checked');if(el.length)_repState.priorities=Array.from(el).map(function(e){return e.value});
   el=document.querySelectorAll('input[name="rep-sprint"]:checked');if(el.length)_repState.sprints=Array.from(el).map(function(e){return e.value});
   el=document.querySelectorAll('input[name="rep-charts"]:checked');
-  _repState.charts=el.length?Array.from(el).map(function(e){return e.value}):['status','timeline','prod','avgdays','devprod','system','sla','workload','flow','syshealth','bydev','bysys','working'];
+  _repState.charts=el.length?Array.from(el).map(function(e){return e.value}):['status','timeline','prod','avgdays','devprod','system','sla','workload','flow','syshealth','bydev','bysys','working','proximas'];
 }
 function repToggle(cb){
   repGetState();
@@ -1062,7 +1147,7 @@ function applyChartVisibility(){
     var key=element.getAttribute('data-chart');
     if(key){
       // If no charts selected, show all. Otherwise, show only selected ones
-      var shouldShow=checked.length===0||checked.indexOf(key)>=0;
+      var shouldShow=checked.indexOf(key)>=0;
       element.style.display=shouldShow?'':'none';
     }
   });
@@ -1293,7 +1378,7 @@ var _chartDefs=[
   
   
   {key:'bydev',label:'Demandas por Desenvolvedor (Tabela)'},
-  {key:'bysys',label:'Demandas por Sistema (Tabela)'},{key:'working',label:'Trabalhando Agora'},
+  {key:'bysys',label:'Demandas por Sistema (Tabela)'},{key:'working',label:'Trabalhando Agora'},{key:'proximas',label:'Próximas Demandas'},
   
 ];
 var chartActive=_repState.charts.length;
@@ -1392,13 +1477,15 @@ html+='</div>';
 
 applyChartVisibility();
 // TABLE: By Dev
-html+='<div class="tbl-c" data-chart="bydev" style="margin-top:14px"><div class="tbl-bar"><h3>Demandas por Desenvolvedor</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Desenvolvedor</th><th>Total</th><th>Concluídas</th><th>Aguardando</th><th>Andamento</th><th>Tempo Médio</th></tr></thead><tbody>';
+html+='<div class="tbl-c" data-chart="bydev" style="margin-top:14px"><div class="tbl-bar"><h3>Demandas por Desenvolvedor</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Desenvolvedor</th><th>Total</th><th>Concluídas</th><th>Em Execução</th>'+(IS_ADMIN?'<th>Em Revisão</th>':'')+'<th>Tempo Médio</th></tr></thead><tbody>';
 (byDev||[]).forEach(d=>{
   const _finalized=(d.concluidas||0)+(d.canceladas||0);const pct=_finalized?Math.round((d.concluidas/_finalized)*100):d.concluidas>0?100:0;
-  const _avgMin=d.avg_days?Math.round(parseFloat(d.avg_days)*24*60):0;const _avgTxt=_avgMin?(_avgMin<60?_avgMin+'min':Math.floor(_avgMin/60)+'h '+(_avgMin%60)+'m'):'—';
-  html+='<tr><td><div class="dev-tag">'+av(d.name,d.avatar_color,22,d.avatar_file,d.role)+' '+esc(d.name)+'</div></td><td style="font-weight:700">'+(d.total||0)+'</td><td style="color:var(--ok)">'+(d.concluidas||0)+'</td><td style="color:var(--warn)">'+(d.aguardando||d.abertas||0)+'</td><td style="color:var(--acc)">'+(d.andamento||0)+'</td><td>'+_avgTxt+'</td></tr>';
+  const _avgMin=d.avg_days?Math.round(parseFloat(d.avg_days)*24*60):0;const _avgTxt=_avgMin?(_avgMin<60?_avgMin+'min':Math.floor(_avgMin/60)+'h '+(_avgMin%60)+'m'):'\u2014';
+  const _emExec=(d.aguardando||d.abertas||0)+(d.andamento||0);
+  const _emRev=d.revisao||0;
+  html+='<tr><td><div class="dev-tag">'+av(d.name,d.avatar_color,22,d.avatar_file,d.role)+' '+esc(d.name)+'</div></td><td style="font-weight:700">'+(d.total||0)+'</td><td style="color:var(--ok)">'+(d.concluidas||0)+'</td><td style="color:var(--acc)">'+_emExec+'</td>'+(IS_ADMIN?'<td style="color:var(--warn)">'+_emRev+'</td>':'')+'<td>'+_avgTxt+'</td></tr>';
 });
-if(!(byDev||[]).length)html+='<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--t3)">Sem dados</td></tr>';
+if(!(byDev||[]).length)html+='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--t3)">Sem dados</td></tr>';
 html+='</tbody></table></div></div>';
 
 // TABLE: By System
@@ -1416,7 +1503,7 @@ html+='</tbody></table></div></div>';
 const _aguardParams={status:'Aguardando Aceite'};
 if(fDev)_aguardParams.dev_id=fDev;if(fSys)_aguardParams.system_id=fSys;
 const _aguardList=await api('demands',{params:_aguardParams})||[];window._aguardList=_aguardList;
-html+=`<div class="tbl-c" style="margin-top:20px">
+html+=`<div class="tbl-c" data-chart="proximas" style="margin-top:20px">
   <div class="tbl-bar" style="background:rgba(212,160,23,.08)">
     <h3 style="display:flex;align-items:center;gap:8px">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4a017" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -1514,14 +1601,14 @@ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ov1),'Visão Geral');
 
 // Por Desenvolvedor - only if selected
 if(selectedCharts.indexOf('bydev')>=0){
-  const dr=[['Nome','Total','Concluídas','Abertas','Andamento','Tempo Médio']];
+  const dr=[['Nome','Total','Concluídas','Em Execução','Em Revisão','Tempo Médio']];
   const filteredDevs=_repState.devs.length>0
     ?(rd.byDev||[]).filter(d=>{
       const devId=String(d.id||d.user_id||d.developer_id||'');
       return _repState.devs.indexOf(devId)>=0;
     })
     :(rd.byDev||[]);
-  filteredDevs.forEach(d=>dr.push([d.name,d.total||0,d.concluidas||0,d.abertas||0,d.andamento||0,d.avg_days?Math.round(parseFloat(d.avg_days)*24*60)+'min':'—']));
+  filteredDevs.forEach(d=>{const _xlExec=(d.aguardando||d.abertas||0)+(d.andamento||0);dr.push([d.name,d.total||0,d.concluidas||0,_xlExec,d.revisao||0,d.avg_days?Math.round(parseFloat(d.avg_days)*24*60)+'min':'—'])});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dr),'Por Desenvolvedor');
 }
 
@@ -1660,7 +1747,7 @@ const _pdfAvgH=ov.avg_days?parseFloat(ov.avg_days)*24:0;const _pdfAvgTxt=_pdfAvg
 const kpis=[
   {l:'Total',v:ov.total||0,c:[99,102,241]},
   {l:'Concluídas',v:ov.concluidas||0,c:[16,185,129]},
-  {l:'Taxa Conclusão',v:(ov.total?Math.round((ov.concluidas/ov.total)*100):0)+'%',c:[245,158,11]},
+
   {l:'Tempo Médio',v:_pdfAvgTxt,c:[236,72,153]},
   {l:'Média/Mês',v:rd.timeline&&rd.timeline.length?Math.round(ov.total/rd.timeline.length):0,c:[139,92,246]}
 ];
@@ -1696,7 +1783,7 @@ doc.setFont('helvetica','normal');doc.setFontSize(7);doc.text(_wk.length+' deman
 y+=12;
 if(_wk.length){
   // Column widths: Demanda(80) Sistema(32) Dev(30) Prior(22) Tempo(22) Prazo(12) = 198
-  var wkCols=[80,32,30,22,22,12];
+  var wkCols=[130,40,35,24,24,20];
   var wkHeaders=['Demanda','Sistema','Dev(s)','Prior.','Exec.','Prazo'];
   doc.setFillColor(40,55,85);doc.roundedRect(mg,y-4,twid,7,1,1,'F');
   var _cx=mg;
@@ -1708,13 +1795,13 @@ if(_wk.length){
     doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(30,40,60);
     var _cx2=mg;
     // Demanda — truncar
-    var _title=(dm.title||'').substring(0,48)+(dm.title&&dm.title.length>48?'...':'');
+    var _title=(dm.title||'');
     doc.setFont('helvetica','bold');doc.text(_title,_cx2+2,y,{maxWidth:wkCols[0]-4});_cx2+=wkCols[0];
     // Sistema
     doc.setFont('helvetica','normal');doc.setTextColor(80,90,110);
-    doc.text((dm.system_name||'--').substring(0,18),_cx2+2,y,{maxWidth:wkCols[1]-4});_cx2+=wkCols[1];
+    doc.text((dm.system_name||'--').substring(0,28),_cx2+2,y,{maxWidth:wkCols[1]-4});_cx2+=wkCols[1];
     // Devs
-    var _dNames=(dm.devs||[]).map(function(d){return d.name}).join(', ').substring(0,18);
+    var _dNames=(dm.devs||[]).map(function(d){return d.name}).join(', ').substring(0,28);
     doc.text(_dNames||'--',_cx2+2,y,{maxWidth:wkCols[2]-4});_cx2+=wkCols[2];
     // Prioridade badge
     var pc={'Urgente':[220,38,38],'Alta':[234,88,12],'Média':[202,138,4],'Baixa':[22,163,74]};
@@ -1812,7 +1899,7 @@ if(selectedCharts.indexOf('bydev')>=0){
   const tblW=pw-mg*2;
   doc.setTextColor(59,130,246);doc.setFontSize(12);doc.setFont('helvetica','bold');
   doc.text('DEMANDAS POR DESENVOLVEDOR',mg,y);y+=7;
-  const dh=['Desenvolvedor','Concluídas','Aguardando','Tempo Médio','% Conclusão'];
+  const dh=['Desenvolvedor','Concluídas','Em Execução','Em Revisão','Tempo Médio'];
   const dw=[72,28,28,28,42];
   // Header row
   doc.setFillColor(30,45,80);doc.roundedRect(mg,y,tblW,6.5,1,1,'F');
@@ -1833,7 +1920,7 @@ if(selectedCharts.indexOf('bydev')>=0){
     if(ri%2===0){doc.setFillColor(240,242,248);doc.rect(mg,y,tblW,6,'F')}
     doc.setTextColor(40,50,70);doc.setFontSize(7.5);
     const pct=d.total?Math.round((d.concluidas/d.total)*100):0;
-    const vals=[d.name,String(d.concluidas||0),String(d.abertas||0),d.avg_days?parseFloat(d.avg_days).toFixed(1):'—',pct+'%'];
+    const _pdfExec=(d.aguardando||d.abertas||0)+(d.andamento||0);const _pdfAvgM=d.avg_days?Math.round(parseFloat(d.avg_days)*24*60):0;const _pdfAvgT=_pdfAvgM?(_pdfAvgM<60?_pdfAvgM+'min':Math.floor(_pdfAvgM/60)+'h '+(_pdfAvgM%60)+'m'):'—';const vals=[d.name,String(d.concluidas||0),String(_pdfExec),String(d.revisao||0),_pdfAvgT];
     vals.forEach((v,i)=>{let cx=mg;for(let j=0;j<i;j++)cx+=dw[j];doc.text(String(v),cx+3,y+4.2)});
     doc.setDrawColor(210,215,225);doc.setLineWidth(0.15);doc.line(mg,y+6,pw-mg,y+6);
     y+=6;
@@ -2042,8 +2129,8 @@ const s=p.stats||{};const pct=s.total?Math.round(s.completed/s.total*100):0;
 const priColors={'Urgente':'#ef4444','Alta':'#f59e0b','Média':'#3b82f6','Baixa':'#10b981'};
 const stColors={'Em Andamento':'#3b82f6','Em Revisão':'#f59e0b','Concluída':'#10b981','Cancelada':'#ef4444'};
 const roles=(p.role||'').split(',').map(r=>r.trim());
-const RL={admin:'Administrador',dev:'Desenvolvedor',diretor:'Diretor',presidencia:'Presidência',usuario:'Usuário'};
-const RC={admin:'#ef4444',dev:'#3b82f6',diretor:'#8b5cf6',presidencia:'#f59e0b',usuario:'#10b981'};
+const RL={admin:'Administrador',dev:'Desenvolvedor',analista:'Analista de Dados',diretor:'Diretor',presidencia:'Presidência',usuario:'Usuário'};
+const RC={admin:'#ef4444',dev:'#3b82f6',analista:'#06b6d4',diretor:'#8b5cf6',presidencia:'#f59e0b',usuario:'#10b981'};
 let roleBadges=roles.map(r=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;background:${RC[r]||'#666'}18;color:${RC[r]||'#666'};border:1px solid ${RC[r]||'#666'}30">${RL[r]||r}</span>`).join(' ');
 
 let html=`<div class="profile-grid">`;
@@ -2206,6 +2293,7 @@ const PERM_GROUPS=[
 const DP={
   admin:Object.fromEntries(PERM_GROUPS.flatMap(g=>g.perms).map(p=>[p.key,1])),
   dev:{view_dashboard:1,view_kanban:1,view_calendario:1,view_sprints:1,view_demandas:1,view_all_demandas:0,create_demandas:1,edit_demandas:1,delete_demandas:0,manage_sprints:0,view_avisos:1,create_avisos:0,view_reunioes:1,create_reunioes:0,view_sistemas:1,manage_sistemas:0,view_devs:1,view_relatorios:0,view_auditoria:0,view_docs:1,manage_docs:0,view_aprovacoes:0,manage_aprovacoes:0,view_solicitacoes:1,manage_solicitacoes:0},
+  analista:{view_dashboard:1,view_kanban:1,view_calendario:1,view_sprints:1,view_demandas:1,view_all_demandas:0,create_demandas:1,edit_demandas:1,delete_demandas:0,manage_sprints:0,view_avisos:1,create_avisos:0,view_reunioes:1,create_reunioes:0,view_sistemas:1,manage_sistemas:0,view_devs:1,view_relatorios:0,view_auditoria:0,view_docs:1,manage_docs:0,view_aprovacoes:0,manage_aprovacoes:0,view_solicitacoes:1,manage_solicitacoes:0},
   presidencia:{view_dashboard:1,view_kanban:1,view_calendario:1,view_sprints:1,view_demandas:1,view_all_demandas:1,create_demandas:0,edit_demandas:0,delete_demandas:0,manage_sprints:0,view_avisos:1,create_avisos:1,view_reunioes:1,create_reunioes:1,view_sistemas:1,manage_sistemas:0,view_devs:1,view_relatorios:1,view_auditoria:1,view_docs:1,manage_docs:0,view_aprovacoes:1,manage_aprovacoes:1,view_solicitacoes:1,manage_solicitacoes:1},
   diretor:{view_dashboard:1,view_kanban:1,view_calendario:1,view_sprints:1,view_demandas:1,view_all_demandas:1,create_demandas:0,edit_demandas:0,delete_demandas:0,manage_sprints:0,view_avisos:1,create_avisos:1,view_reunioes:1,create_reunioes:1,view_sistemas:1,manage_sistemas:0,view_devs:1,view_relatorios:1,view_auditoria:0,view_docs:1,manage_docs:0,view_aprovacoes:1,manage_aprovacoes:0,view_solicitacoes:1,manage_solicitacoes:0},
 };
@@ -2292,7 +2380,7 @@ async function resetPerm(uid,role){
 async function loadUsers(){const users=await api('admin_users');let html='';if(!users||!users.length){html='<div class="empty"><p>Nenhum usuário cadastrado</p></div>';document.getElementById('usuarios-grid').innerHTML=html;return}
 const RL={admin:'Administrador',dev:'Desenvolvedor',diretor:'Diretor',presidencia:'Presidência',usuario:'Usuário'};
 const RC={admin:'#ef4444',dev:'#3b82f6',diretor:'#8b5cf6',presidencia:'#f59e0b',usuario:'#10b981'};
-const RI={admin:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',dev:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',diretor:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 20h20"/><path d="M4 20V10l4 4 4-8 4 8 4-4v10"/></svg>',presidencia:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',usuario:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'};
+const RI={admin:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',dev:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',diretor:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 20h20"/><path d="M4 20V10l4 4 4-8 4 8 4-4v10"/></svg>',presidencia:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',usuario:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',analista:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12h-4l-3 9L9 3l-3 9H2"/></svg>'};
 users.forEach(u=>{const blocked=!u.active;
 const roles=(u.role||'dev').split(',').map(r=>r.trim());
 let badges=roles.map(r=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:${RC[r]||'#666'}15;color:${RC[r]||'#666'};border:1px solid ${RC[r]||'#666'}30">${RI[r]||''}${RL[r]||r}</span>`).join(' ');
@@ -3934,67 +4022,50 @@ function _renderTopbarTimer(workedSec, jornadaSec, status, activeSince) {
 
 
 async function togglePontoChip(chipEl) {
-  // Fechar popup se já aberto
   const existing = document.getElementById('ponto-chip-popup');
   if (existing) { existing.remove(); return; }
 
   const popup = document.createElement('div');
   popup.id = 'ponto-chip-popup';
-  const isAtivo = _topbarActiveSince !== null || document.getElementById('ponto-topbar-val')?.closest('#ponto-header-timer')?.querySelector('circle')?.getAttribute('fill') === 'var(--ok)';
-
-  popup.style.cssText = `
-    position:fixed;
-    top:${chipEl.getBoundingClientRect().bottom + 8}px;
-    left:${chipEl.getBoundingClientRect().left}px;
-    background:var(--bg2);
-    border:1px solid var(--bdr);
-    border-radius:12px;
-    box-shadow:0 8px 32px rgba(0,0,0,.3);
-    padding:8px;
-    z-index:9999;
-    min-width:180px;
-    animation:fadeIn .15s ease;
-  `;
-
-  const status = _topbarActiveSince ? 'Ativo' : 'Pausado';
   const isActive = !!_topbarActiveSince;
+  const hasWorked = _topbarWorkedBase > 0 || isActive;
+  // 3 estados: não iniciou (0h, inativo), ativo, pausado (tem horas, inativo)
+  const estado = isActive ? 'ativo' : (hasWorked ? 'pausado' : 'novo');
 
-  popup.innerHTML = `
-    <div style="padding:6px 10px 10px;border-bottom:1px solid var(--bdr);margin-bottom:6px">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)">Ponto Digital</div>
-      <div style="font-size:12px;font-weight:600;color:${isActive ? 'var(--ok)' : 'var(--t3)'};margin-top:2px">
-        ${isActive ? '● Ativo' : '⏸ Pausado'}
-      </div>
-    </div>
-    <button onclick="handleChipAction('${isActive ? 'out' : 'in'}')" style="
-      width:100%;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;
-      background:${isActive ? 'rgba(239,68,68,.1)' : 'rgba(16,185,129,.1)'};
-      color:${isActive ? 'var(--err)' : 'var(--ok)'};
-      font-size:12px;font-weight:600;text-align:left;display:flex;align-items:center;gap:8px;
-    ">
-      ${isActive
-        ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Pausar (Almoço)'
-        : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Retomar'}
-    </button>
-    <button onclick="showPage('ponto');document.getElementById('ponto-chip-popup')?.remove()" style="
-      width:100%;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;
-      background:transparent;color:var(--t2);
-      font-size:12px;font-weight:500;text-align:left;display:flex;align-items:center;gap:8px;
-      margin-top:2px;
-    ">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Ver Ponto Digital
-    </button>
-  `;
+  const rect = chipEl.getBoundingClientRect();
+  let popLeft = rect.left;
+  let popTop = rect.bottom + 8;
+  if(popLeft + 200 > window.innerWidth) popLeft = window.innerWidth - 210;
+
+  popup.style.cssText = 'position:fixed;top:'+popTop+'px;left:'+popLeft+'px;background:var(--bg2);border:1px solid var(--bdr);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:8px;z-index:9999;min-width:200px;animation:fadeIn .15s ease';
+
+  const statusLabel = estado==='ativo' ? '<span style="color:var(--ok)">● Ativo</span>'
+    : estado==='pausado' ? '<span style="color:var(--warn)">⏸ Pausado</span>'
+    : '<span style="color:var(--t3)">○ Não iniciado</span>';
+
+  let btns = '';
+
+  if(estado === 'novo'){
+    btns += '<button onclick="handleChipAction(\'in\')" style="width:100%;padding:10px 12px;border:none;border-radius:8px;cursor:pointer;background:var(--ok);color:#fff;font-size:12px;font-weight:700;text-align:left;display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Iniciar Jornada</button>';
+  } else if(estado === 'ativo'){
+    btns += '<button onclick="handleChipAction(\'out\')" style="width:100%;padding:10px 12px;border:none;border-radius:8px;cursor:pointer;background:rgba(245,158,11,.1);color:var(--warn);font-size:12px;font-weight:600;text-align:left;display:flex;align-items:center;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Pausar (Almoço)</button>';
+    btns += '<button onclick="handleChipAction(\'end\')" style="width:100%;padding:10px 12px;border:none;border-radius:8px;cursor:pointer;background:rgba(239,68,68,.08);color:var(--err);font-size:12px;font-weight:600;text-align:left;display:flex;align-items:center;gap:8px;margin-top:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Encerrar Jornada</button>';
+  } else {
+    btns += '<button onclick="handleChipAction(\'in\')" style="width:100%;padding:10px 12px;border:none;border-radius:8px;cursor:pointer;background:rgba(16,185,129,.1);color:var(--ok);font-size:12px;font-weight:700;text-align:left;display:flex;align-items:center;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Retomar</button>';
+  }
+
+  popup.innerHTML = '<div style="padding:6px 10px 10px;border-bottom:1px solid var(--bdr);margin-bottom:6px">' +
+    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)">Ponto Digital</div>' +
+    '<div style="font-size:12px;font-weight:600;margin-top:2px">' + statusLabel + '</div></div>' +
+    btns +
+    '<button onclick="showPage(\'ponto\');document.getElementById(\'ponto-chip-popup\')?.remove()" style="width:100%;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--t2);font-size:12px;font-weight:500;text-align:left;display:flex;align-items:center;gap:8px;margin-top:4px;border-top:1px solid var(--bdr);padding-top:10px">' +
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Ver Ponto Digital</button>';
 
   document.body.appendChild(popup);
-
-  // Fechar ao clicar fora
-  setTimeout(() => {
-    document.addEventListener('click', function close(e) {
-      if (!popup.contains(e.target) && e.target !== chipEl) {
-        popup.remove();
-        document.removeEventListener('click', close);
+  setTimeout(function(){
+    document.addEventListener('click', function close(e){
+      if(!popup.contains(e.target) && e.target !== chipEl && !chipEl.contains(e.target)){
+        popup.remove(); document.removeEventListener('click', close);
       }
     });
   }, 50);
@@ -4005,27 +4076,36 @@ async function handleChipAction(action) {
   if (action === 'out') {
     const r = await api('ponto_clock_out', { method: 'POST', body: { note: 'Almoço' } });
     if (r?.success || r?.error === 'Nenhuma sessão ativa') {
-      // Somar tempo da sessão ativa ao base antes de pausar
       if (_topbarActiveSince) {
         _topbarWorkedBase += Math.floor((Date.now() - _topbarActiveSince) / 1000);
       }
       _topbarActiveSince = null;
       startTopbarTimer(_topbarWorkedBase, null, _topbarJornada);
-      _updateTopbarTimer(_topbarWorkedBase, _topbarJornada, 'Pausado', null);
       showToast('⏸ Ponto pausado — bom almoço!');
+    }
+  } else if (action === 'end') {
+    const r = await api('ponto_clock_out', { method: 'POST', body: { note: 'Jornada encerrada' } });
+    if (r?.success || r?.error === 'Nenhuma sessão ativa') {
+      if (_topbarActiveSince) {
+        _topbarWorkedBase += Math.floor((Date.now() - _topbarActiveSince) / 1000);
+      }
+      _topbarActiveSince = null;
+      startTopbarTimer(_topbarWorkedBase, null, _topbarJornada);
+      window._pontoOvertimeAsked = false;
+      showToast('Jornada encerrada. Bom descanso!');
     }
   } else {
     const r = await api('ponto_clock_in', { method: 'POST' });
     if (r?.success) {
-      // Buscar total atualizado do servidor
       const st = await api('ponto_today');
       if (st) {
         _topbarWorkedBase = st.worked_seconds || 0;
         _topbarJornada = (st.jornada_hours || 8) * 3600;
       }
       _topbarActiveSince = new Date(r.clock_in).getTime();
+      window._pontoOvertimeAsked = false;
       startTopbarTimer(_topbarWorkedBase, r.clock_in, _topbarJornada);
-      showToast('▶ Ponto retomado!');
+      showToast(_topbarWorkedBase > 60 ? '▶ Ponto retomado!' : '▶ Jornada iniciada! Bom trabalho!');
     }
   }
 }
@@ -4058,6 +4138,59 @@ let _topbarTimerInterval = null;
 let _topbarWorkedBase = 0;
 let _topbarActiveSince = null;
 let _topbarJornada = 28800;
+
+
+// ===== NOTIFICAÇÃO JORNADA COMPLETA =====
+window._pontoOvertimeAsked = false;
+
+function _showOvertimePrompt(totalSec, jornadaSec){
+  var existing = document.getElementById('ponto-overtime-modal');
+  if(existing) existing.remove();
+  // Limpar timer anterior
+  if(window._pontoAutoCloseTimer) clearTimeout(window._pontoAutoCloseTimer);
+  var extraSec = totalSec - jornadaSec;
+  var extraH = Math.floor(extraSec / 3600);
+  var extraM = Math.floor((extraSec % 3600) / 60);
+  var extraTxt = extraH > 0 ? extraH + 'h ' + extraM + 'min' : extraM + 'min';
+  var modal = document.createElement('div');
+  modal.id = 'ponto-overtime-modal';
+  modal.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;width:340px;background:var(--bg2);border:2px solid var(--warn);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.4);overflow:hidden;animation:slideInRight .3s ease';
+  modal.innerHTML = '<div style="background:rgba(245,158,11,.1);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)"><div style="width:40px;height:40px;border-radius:10px;background:rgba(245,158,11,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--t1)">Jornada Completa!</div><div style="font-size:11px;color:var(--t3)">Hora extra: +' + extraTxt + '</div></div></div><div style="padding:14px 16px"><p style="font-size:12px;color:var(--t2);margin:0 0 4px;line-height:1.5">Sua jornada foi concluida. Ainda esta trabalhando?</p><p id="ponto-auto-close-msg" style="font-size:10px;color:var(--err);margin:0 0 12px">Se nao responder em 10 minutos, o ponto sera encerrado automaticamente.</p><div style="display:flex;gap:8px"><button onclick="_pontoStillWorking()" style="flex:1;padding:10px;border:none;border-radius:8px;cursor:pointer;background:var(--acc);color:#fff;font-weight:700;font-size:12px">Sim, continuar</button><button onclick="_pontoStopWorking()" style="flex:1;padding:10px;border:1px solid var(--err);border-radius:8px;cursor:pointer;background:transparent;color:var(--err);font-weight:700;font-size:12px">Encerrar ponto</button></div></div>';
+  document.body.appendChild(modal);
+  // Auto-encerrar em 10 minutos se nao responder
+  window._pontoAutoCloseTimer = setTimeout(function(){
+    var m = document.getElementById('ponto-overtime-modal');
+    if(m){
+      // Nao respondeu — encerrar automaticamente
+      _pontoStopWorking();
+      showToast('Ponto encerrado automaticamente por inatividade.');
+    }
+  }, 600000); // 10 min
+}
+
+function _pontoStillWorking(){
+  if(window._pontoAutoCloseTimer) clearTimeout(window._pontoAutoCloseTimer);
+  var modal = document.getElementById('ponto-overtime-modal');
+  if(modal) modal.remove();
+  showToast('Hora extra registrada. Lembre de encerrar quando terminar.');
+  setTimeout(function(){ window._pontoOvertimeAsked = false; }, 600000);
+}
+
+async function _pontoStopWorking(){
+  if(window._pontoAutoCloseTimer) clearTimeout(window._pontoAutoCloseTimer);
+  var modal = document.getElementById('ponto-overtime-modal');
+  if(modal) modal.remove();
+  var r = await api('ponto_clock_out', {method:'POST', body:{note:'Jornada encerrada'}});
+  if(r && (r.success || r.error)){
+    if(typeof _topbarActiveSince!=='undefined' && _topbarActiveSince){
+      _topbarWorkedBase += Math.floor((Date.now() - _topbarActiveSince) / 1000);
+    }
+    _topbarActiveSince = null;
+    if(typeof startTopbarTimer==='function') startTopbarTimer(_topbarWorkedBase, null, _topbarJornada);
+    showToast('Ponto encerrado. Bom descanso!');
+  }
+  window._pontoOvertimeAsked = false;
+}
 
 function startTopbarTimer(base, since, jornada) {
   clearInterval(_topbarTimerInterval);
@@ -4097,10 +4230,21 @@ function startTopbarTimer(base, since, jornada) {
       elR.style.color = rest === 0 ? 'var(--err)' : 'var(--ok)';
     }
 
+    // Verificar jornada completa
+    if(_topbarActiveSince && !window._pontoOvertimeAsked){
+      const jornSec = _topbarJornada || 28800;
+      if(total >= jornSec){
+        window._pontoOvertimeAsked = true;
+        // Mostrar notificação perguntando se ainda está trabalhando
+        setTimeout(function(){
+          _showOvertimePrompt(total, jornSec);
+        }, 500);
+      }
+    }
+
     // Atualizar células da equipe em tempo real
     document.querySelectorAll('[id^="ponto-team-cell-"]').forEach(cell => {
       if (cell.dataset.active !== '1') return;
-      // Incrementar 1 segundo por tick
       const cur = parseInt(cell.dataset.sec) || 0;
       cell.dataset.sec = cur + 1;
       cell.textContent = _pontoFmt(cur + 1);
@@ -4136,7 +4280,7 @@ function _startTeamTimer() {
   }, 1000);
 }
 
-async function initTopbarPontoTimer() { return; // DESATIVADO TEMPORARIAMENTE
+async function initTopbarPontoTimer() {
   try {
     const today = await api('ponto_today');
     if (!today) return;
