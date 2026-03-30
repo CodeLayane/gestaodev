@@ -34,7 +34,8 @@ async function loadMyPerms(){
   }catch(e){MY_PERMS=null;}
 }
 function applyPerms(){
-  // Ponto Digital ativo
+  // Ponto Digital oculto
+  document.querySelectorAll('.sb-i[data-page="ponto"]').forEach(el=>el.style.display='none');
   const map={
     dashboard:'view_dashboard',kanban:'view_kanban',calendario:'view_calendario',
     sprints:'view_sprints',demandas:'view_demandas',avisos:'view_avisos',
@@ -125,7 +126,7 @@ document.querySelectorAll('.modal-o').forEach(o=>o.addEventListener('click',e=>{
 const pageInfo={dashboard:['Dashboard','Visão geral'],kanban:['Kanban','Gestão visual'],demandas:['Demandas','Lista completa'],calendario:['Calendário','Entregas e prazos'],sprints:['Sprints','Ciclos de desenvolvimento'],avisos:['Quadro de Avisos','Comunicados'],reunioes:['Reuniões','Agenda'],notificacoes:['Notificações','Todas as notificações'],sistemas:['Sistemas','Catálogo ASSEGO'],devs:['Desenvolvedores','Equipe'],perfil:['Meu Perfil','Dados e senha'],ponto:['Ponto Digital','Controle de jornada'],usuarios:['Usuários','Gerenciamento de contas'],solicitacoes:['Solicitações','Melhorias sugeridas'],relatorios:['Relatórios','Análise e diagnósticos'],docs:['Documentações','Gestão de documentos'],aprovacoes:['Aprovações','Presidência'],auditoria:['Auditoria','Registro de ações'],ponto:['Ponto Digital','Controle de jornada']};
 document.querySelectorAll('.sb-i[data-page]').forEach(el=>el.addEventListener('click',()=>showPage(el.dataset.page)));
 function showPage(pg){
-  // Ponto Digital ativo
+  if(pg==='ponto'){showToast('Ponto Digital temporariamente desativado');return;}
   const permMap={dashboard:'view_dashboard',kanban:'view_kanban',calendario:'view_calendario',sprints:'view_sprints',demandas:'view_demandas',avisos:'view_avisos',reunioes:'view_reunioes',sistemas:'view_sistemas',devs:'view_devs',relatorios:'view_relatorios',auditoria:'view_auditoria',docs:'view_docs',aprovacoes:'view_aprovacoes',solicitacoes:'view_solicitacoes'};
   const reqPerm=permMap[pg];
   if(reqPerm&&!hasPerm(reqPerm)){showToast?showToast('⛔ Sem permissão para acessar esta página'):alert('Sem permissão');return;}
@@ -579,7 +580,7 @@ const ua=document.getElementById('upload-area');if(ua){ua.addEventListener('drag
 // ===== PONTO DIGITAL =====
 var _pontoActive=false,_pontoTotalSec=0,_pontoWorkHours=6,_pontoClockIn=null;
 
-async function initPonto(){
+async function initPonto(){ return; // DESATIVADO
   const st=await api('ponto_status');
   if(!st)return;
   _pontoWorkHours=st.work_hours||6;
@@ -4280,7 +4281,7 @@ function _startTeamTimer() {
   }, 1000);
 }
 
-async function initTopbarPontoTimer() {
+async function initTopbarPontoTimer() { return; // DESATIVADO
   try {
     const today = await api('ponto_today');
     if (!today) return;
@@ -4305,9 +4306,9 @@ async function initTopbarPontoTimer() {
 
 // Inicializar após carregamento da página
 document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(initTopbarPontoTimer, 1500);
+  // setTimeout(initTopbarPontoTimer, 1500); // DESATIVADO
 });
 // Fallback se DOMContentLoaded já passou
 if (document.readyState !== 'loading') {
-  setTimeout(initTopbarPontoTimer, 1500);
+  // setTimeout(initTopbarPontoTimer, 1500); // DESATIVADO
 }
