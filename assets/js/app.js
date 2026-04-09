@@ -1,4 +1,6 @@
 
+(function(){var s=document.createElement('style');s.textContent='@keyframes ai-spin{to{transform:rotate(360deg)}}.spin-ai{animation:ai-spin 1s linear infinite}';document.head.appendChild(s)})();
+
 function setCpx(el){
   const val=el.dataset.val, idx=parseInt(el.dataset.idx);
   document.getElementById('d-complexity').value=val;
@@ -239,7 +241,7 @@ async function loadBaseData(){const[d,s,u,sp]=await Promise.all([api('dev_list')
 async function loadDashboard(){const dashMineEl=document.getElementById('dash-mine');const dashMine=dashMineEl?dashMineEl.checked:(IS_DEV&&!IS_ADMIN&&!IS_DIR);const devFilter=dashMine?{dev_id:ME.id}:{};const proms=[api('stats',{params:devFilter}),api('demands',{params:devFilter}),api('activities')];if(IS_DEV)proms.push(api('demands',{params:{dev_id:ME.id}}));const[stats,demands,acts,myDemands]=await Promise.all(proms);
 const toggleHtml=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;justify-content:flex-end"><label class="filter-toggle" title="Mostrar apenas suas demandas"><input type="checkbox" id="dash-mine" onchange="loadDashboard()" ${dashMine?'checked':''}><span class="ft-track"><span class="ft-knob"></span></span><span class="ft-text">Minhas</span></label></div>`;
 document.getElementById('dash-toggle').innerHTML=toggleHtml;
-document.getElementById('dash-stats').innerHTML=`<div class="sc blue"><div class="sc-l">Total</div><div class="sc-v">${stats.total||0}</div></div><div class="sc purple"><div class="sc-l">Abertas</div><div class="sc-v">${stats.abertas||0}</div></div><div class="sc gold"><div class="sc-l">Aguardando Aceite</div><div class="sc-v">${stats.aguardando||0}</div></div><div class="sc yellow"><div class="sc-l">Em Andamento</div><div class="sc-v">${(+stats.andamento||0)+(+stats.revisao||0)}</div></div><div class="sc green"><div class="sc-l">Concluídas</div><div class="sc-v">${stats.concluidas||0}</div></div><div class="sc red"><div class="sc-l">Urgentes</div><div class="sc-v">${stats.urgentes||0}</div></div>`;
+document.getElementById('dash-stats').innerHTML=`<div class="sc blue"><div class="sc-l">Total</div><div class="sc-v">${stats.total||0}</div></div><div class="sc green"><div class="sc-l">Concluídas</div><div class="sc-v">${stats.concluidas||0}</div></div><div class="sc gold"><div class="sc-l">Aguardando Aceite</div><div class="sc-v">${stats.aguardando||0}</div></div><div class="sc yellow"><div class="sc-l">Em Andamento</div><div class="sc-v">${(+stats.andamento||0)+(+stats.revisao||0)}</div></div><div class="sc red"><div class="sc-l">Atrasadas</div><div class="sc-v">${stats.atrasadas||0}</div></div>`;
 // My demands section for devs
 const myEl=document.getElementById('dash-mydemands');
 if(IS_DEV&&myDemands){
@@ -251,25 +253,131 @@ const kanCount=(demands||[]).filter(d=>d.status==='Aberta'||(d.status==='Aguarda
 // Recent demands: devs see only their own + open unassigned; admins see all
 const recentList=IS_DEV?(demands||[]).filter(d=>(d.devs||[]).some(dv=>dv.user_id==ME.id)||((d.devs||[]).length===0&&!['Concluída','Cancelada'].includes(d.status))):(demands||[]);
 document.getElementById('dash-recent').innerHTML=recentList.slice(0,8).map(d=>`<tr onclick="openDetail(${d.id})"><td style="font-weight:600">${esc(d.title)}</td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td>${devsHtml(d.devs)}</td></tr>`).join('')||'<tr><td colspan="3"><div class="empty"><p>Nenhuma demanda</p></div></td></tr>';
-document.getElementById('dash-activity').innerHTML=(acts||[]).slice(0,15).map(a=>`<div style="padding:7px 0;border-bottom:1px solid var(--bdr);font-size:12px"><span style="color:var(--acc);font-weight:600">${esc(a.user_name||'Sistema')}</span> <span style="color:var(--t2)">${esc(a.action)}</span> <span style="color:var(--t3);font-size:10px;font-family:'JetBrains Mono',monospace;margin-left:6px">${timeAgo(a.created_at)}</span></div>`).join('')||'<div class="empty"><p>Sem atividade</p></div>'}
+document.getElementById('dash-activity').innerHTML=(acts||[]).slice(0,15).map(a=>`<div style="padding:7px 0;border-bottom:1px solid var(--bdr);font-size:12px"><span style="color:var(--acc);font-weight:600">${esc(a.user_name||'Sistema')}</span> <span style="color:var(--t2)">${esc(a.action)}</span> <span style="color:var(--t3);font-size:10px;font-family:'JetBrains Mono',monospace;margin-left:6px">${timeAgo(a.created_at)}</span></div>`).join('')||'<div class="empty"><p>Sem atividade</p></div>'};loadAutoConfig()
 
 // ===== KANBAN =====
 async function loadKanban(){const p={};const kd=document.getElementById('k-dev')?.value;const kMineEl=document.getElementById('k-mine');if(kd){p.dev_id=kd;if(kMineEl)kMineEl.checked=false}else if(kMineEl?.checked)p.dev_id=ME.id;const kp=document.getElementById('k-priority')?.value;if(kp)p.priority=kp;const ks=document.getElementById('k-system')?.value;if(ks)p.system_id=ks;const ksp=document.getElementById('k-sprint')?.value;if(ksp)p.sprint_id=ksp;const demands=await api('demands',{params:p})||[];document.getElementById('kanban-board').innerHTML=STATUS_LIST.filter(st=>st!=='Aberta'&&st!=='Cancelada').map(st=>{const items=demands.filter(d=>d.status===st);return`<div class="k-col"><div class="k-head"><span class="k-title"><span class="k-dot" style="background:${STATUS_COLORS[st]}"></span>${st}</span><span class="k-cnt">${items.length}</span></div><div class="k-body">${items.map(d=>`<div class="k-card" onclick="openDetail(${d.id})" ${d.needs_presidency_approval==1&&d.presidency_status==='Rejeitada'?'style="border-left:3px solid var(--err);opacity:.75"':''}><div class="k-card-t">${d.needs_presidency_approval==1&&d.presidency_status==='Rejeitada'?IC.block+' ':''}${esc(d.title)}</div><div class="k-card-m"><span class="tag">${esc(d.system_name||'—')}</span><span class="badge ${pClass(d.priority)}">${d.priority}</span></div><div class="k-card-m" style="margin-top:5px">${devsHtml(d.devs)}${d.needs_presidency_approval==1?`<span class="badge ${presClass(d.presidency_status)}">${IC_CROWN}</span>`:''}</div>${d.checklist_total>0?`<div style="margin-top:5px;display:flex;align-items:center;gap:5px"><div style="flex:1;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden"><div style="height:100%;width:${Math.round((d.checklist_done||0)/(d.checklist_total||1)*100)}%;background:${(d.checklist_done||0)==(d.checklist_total||0)?'var(--ok)':'var(--acc)'};border-radius:2px"></div></div><span style="font-size:9px;color:var(--t3)">${d.checklist_done||0}/${d.checklist_total}</span></div>`:''}</div>`).join('')||'<div class="empty" style="padding:12px"><p style="font-size:10px">Vazio</p></div>'}</div></div>`}).join('')}
 
 // ===== DEMANDS =====
 async function loadDemands(){const p={};const s=document.getElementById('d-search')?.value;if(s)p.search=s;const fs=document.getElementById('f-status')?.value;if(fs)p.status=fs;const fp=document.getElementById('f-priority')?.value;if(fp)p.priority=fp;const ft=document.getElementById('f-type')?.value;if(ft)p.type=ft;const fsy=document.getElementById('f-system')?.value;if(fsy)p.system_id=fsy;const fsp=document.getElementById('f-sprint')?.value;if(fsp)p.sprint_id=fsp;const fdev=document.getElementById('f-dev')?.value;const fMineEl=document.getElementById('f-mine');if(fdev){p.dev_id=fdev;if(fMineEl)fMineEl.checked=false}else if(fMineEl?.checked)p.dev_id=ME.id;
-const demands=await api('demands',{params:p})||[];document.getElementById('dem-body').innerHTML=demands.length?demands.map(d=>`<tr onclick="openDetail(${d.id})"><td style="font-family:'JetBrains Mono',monospace;color:var(--t3);font-size:11px">#${d.id}</td><td style="font-weight:600">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge" style="font-size:9px">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td>${devsHtml(d.devs)}</td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td>${acceptBadge(d.devs)}</td><td>${d.needs_presidency_approval==1?`<span class="badge ${presClass(d.presidency_status)}">${IC_CROWN} ${d.presidency_status}</span>`:'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${fmtDate(d.deadline)}</td></tr>`).join(''):'<tr><td colspan="10"><div class="empty"><div class="ei">—</div><p>Nenhuma demanda</p></div></td></tr>'}
+const demands=await api('demands',{params:p})||[];document.getElementById('dem-body').innerHTML=demands.length?demands.map(d=>`<tr onclick="openDetail(${d.id})"><td style="font-family:'JetBrains Mono',monospace;color:var(--t3);font-size:11px">#${d.id}</td><td style="font-weight:600">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td>${devsHtml(d.devs)}</td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td>${acceptBadge(d.devs)}</td><td>${d.needs_presidency_approval==1?`<span class="badge ${presClass(d.presidency_status)}">${IC_CROWN} ${d.presidency_status}</span>`:'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${fmtDate(d.deadline)}</td></tr>`).join(''):'<tr><td colspan="10"><div class="empty"><div class="ei">—</div><p>Nenhuma demanda</p></div></td></tr>'}
 
 
 // ===== AUTO SLA DEADLINE =====
-const SLA_DAYS={Urgente:0,Alta:1,'Média':3,Baixa:5};
+const SLA_DAYS={Urgente:1,Alta:3,'Média':5,Baixa:7};
+const COMPLEXITY_DAYS={Simples:1,Moderada:2,Complexa:3,'Muito Complexa':5};
+
+// ===== ANÁLISE IA DE DEMANDAS (Gemini) =====
+const GROQ_KEY='REMOVED_SECRET';
+function aiSuggestDemand(){
+  var title = document.getElementById('d-title')?.value?.trim() || '';
+  var desc = document.getElementById('d-desc')?.value?.trim() || '';
+  if(!title && !desc){ showToast('Preencha titulo ou descricao primeiro'); return; }
+  var btn = document.getElementById('btn-ai-suggest');
+  if(btn){ btn.disabled=true; btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-ai"><circle cx="12" cy="12" r="10" stroke-dasharray="30" stroke-dashoffset="10"/></svg>'; }
+  var _sysNames=typeof allSystems!=='undefined'?allSystems.map(function(s){return s.name}).join(', '):'';var prompt = 'Sistemas disponiveis: '+_sysNames+'.\nAnalise esta demanda de desenvolvimento de software. Responda APENAS com JSON puro, sem markdown:\n' +
+    'Titulo: ' + title + '\nDescricao: ' + (desc || 'Nao informado') + '\n' +
+    'Formato: {"prioridade":"X","complexidade":"Y","prazo_dias":N,"justificativa":"texto curto em portugues"}\n' +
+    'prioridade: Baixa/Media/Alta/Urgente. complexidade: Simples/Moderada/Complexa/Muito Complexa.\n' +
+    'Urgente=sistema parado, Alta=impacta trabalho, Media=melhoria, Baixa=cosmetico. Simples=2h, Moderada=2-8h, Complexa=1-3d, Muito Complexa=3+d.\n' +
+    'prazo_dias=MAIOR(prioridade:Urgente=1,Alta=2,Media=5,Baixa=7 vs complexidade:Simples=1,Moderada=2,Complexa=3,MuitoComplexa=5). Tambem identifique o sistema mencionado e retorne no campo "sistema" (nome do sistema, ou vazio se nao identificar). So JSON.';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', 'https://api.groq.com/openai/v1/chat/completions', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('Authorization', 'Bearer ' + GROQ_KEY);
+  xhr.onload = function(){
+    try {
+      var data = JSON.parse(xhr.responseText);
+      if(data.error) throw new Error(data.error.message);
+      var text = (data?.choices?.[0]?.message?.content || '').replace(/```json|```/g,'').trim();
+      var m = text.match(/\{[\s\S]*\}/);
+      if(!m) throw new Error('JSON nao encontrado');
+      var r = JSON.parse(m[0]);
+      if(r.prioridade==='Media') r.prioridade='M\u00e9dia';
+      var priEl=document.getElementById('d-priority'),cpxEl=document.getElementById('d-complexity'),dlEl=document.getElementById('d-deadline');
+      if(priEl&&r.prioridade) priEl.value=r.prioridade;
+      if(cpxEl&&r.complexidade) cpxEl.value=r.complexidade;
+      if(dlEl&&r.prazo_dias){var s=new Date();var a=0;while(a<r.prazo_dias){s.setDate(s.getDate()+1);if(s.getDay()!==0&&s.getDay()!==6)a++;}dlEl.value=s.toISOString().split('T')[0];}
+      var j=document.getElementById('ai-justificativa');
+      if(j&&r.justificativa){j.style.display='block';j.innerHTML='<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.2);border-radius:10px;font-size:11px;color:var(--t2);line-height:1.6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(139,92,246)" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><div><strong style="color:rgb(139,92,246)">Sugestao IA:</strong> '+r.justificativa+'<div style="margin-top:4px;font-size:10px;color:var(--t3)">Prioridade: <strong>'+r.prioridade+'</strong> \u00b7 Complexidade: <strong>'+r.complexidade+'</strong> \u00b7 Prazo: <strong>'+r.prazo_dias+' dia(s)</strong></div></div></div>';}
+      // Auto-selecionar sistema e devs
+      if(r.sistema && typeof allSystems!=='undefined'){
+        var sysEl=document.getElementById('d-system');
+        if(sysEl){
+          var sysName=(r.sistema||'').toLowerCase();
+          var matched=null;var bestScore=0;
+          allSystems.forEach(function(s){
+            var sn=s.name.toLowerCase();
+            var words=sn.split(/\s+/);
+            var score=0;
+            words.forEach(function(w){if(w.length>2&&sysName.indexOf(w)>=0)score+=w.length;});
+            if(sn===sysName)score=999;
+            if(score>bestScore){bestScore=score;matched=s;}
+          });
+          if(bestScore<4)matched=null;
+          if(matched){
+            sysEl.value=matched.id;
+            if(matched.dev_ids){
+              var devIds=String(matched.dev_ids).split(',');
+              var checkboxes=document.querySelectorAll('#d-devs input[type="checkbox"]');
+              checkboxes.forEach(function(cb){if(devIds.indexOf(cb.value)>=0)cb.checked=true;});
+            }
+          }
+        }
+      }
+      showToast('\u2728 Campos preenchidos pela IA');
+    } catch(e){console.error('AI error:',e,xhr.responseText);showToast('Erro: '+e.message);}
+    if(btn){btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 2L8.8 6.2 4.6 7.4 8.8 8.6 10 12.8 11.2 8.6 15.4 7.4 11.2 6.2z"/><path d="M17 12l-.8 2.8-2.8.8 2.8.8.8 2.8.8-2.8 2.8-.8-2.8-.8z"/><path d="M6 16l-.5 1.8-1.8.5 1.8.5.5 1.8.5-1.8 1.8-.5-1.8-.5z"/></svg>';}
+  };
+  xhr.onerror=function(){showToast('Erro de conexao');if(btn){btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 2L8.8 6.2 4.6 7.4 8.8 8.6 10 12.8 11.2 8.6 15.4 7.4 11.2 6.2z"/><path d="M17 12l-.8 2.8-2.8.8 2.8.8.8 2.8.8-2.8 2.8-.8-2.8-.8z"/><path d="M6 16l-.5 1.8-1.8.5 1.8.5.5 1.8.5-1.8 1.8-.5-1.8-.5z"/></svg>';}};
+  xhr.send(JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'user',content:prompt}],temperature:0.2,max_tokens:500}));
+}
+
+// ===== AUTO-PREENCHER TITULO/DESCRICAO COM IA =====
+var _aiAutoFillTimer=null;
+function aiAutoFill(source){
+  var titleEl=document.getElementById('d-title'),descEl=document.getElementById('d-desc');
+  if(!titleEl||!descEl)return;
+  var title=titleEl.value.trim(),desc=descEl.value.trim();
+  if(source==='desc'&&desc&&!title) _aiGenerateField('title',desc);
+  else if(source==='title'&&title&&!desc) _aiGenerateField('desc',title);
+}
+function _aiGenerateField(field,texto){
+  if(_aiAutoFillTimer)clearTimeout(_aiAutoFillTimer);
+  _aiAutoFillTimer=setTimeout(function(){
+    var prompt=field==='title'?'Gere APENAS um titulo curto (max 60 chars) para esta demanda de software, sem aspas, so o titulo:\n'+texto:'Gere APENAS uma descricao tecnica breve (1-2 frases) para esta demanda, sem aspas, so a descricao:\n'+texto;
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','https://api.groq.com/openai/v1/chat/completions',true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.setRequestHeader('Authorization','Bearer '+GROQ_KEY);
+    xhr.onload=function(){
+      try{
+        var data=JSON.parse(xhr.responseText);
+        if(data.error)return;
+        var text=(data?.choices?.[0]?.message?.content||'').replace(/^["']|["']$/g,'').trim();
+        if(!text)return;
+        var el=document.getElementById(field==='title'?'d-title':'d-desc');
+        if(el&&!el.value.trim()){el.value=text;el.style.transition='background .5s';el.style.background='rgba(139,92,246,.12)';setTimeout(function(){el.style.background='';},2000);}
+      }catch(e){console.error('Autofill:',e);}
+    };
+    xhr.send(JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'user',content:prompt}],temperature:0.3,max_tokens:100}));
+  },800);
+}
+document.addEventListener('blur',function(e){
+  if(e.target&&e.target.id==='d-desc')aiAutoFill('desc');
+  if(e.target&&e.target.id==='d-title')aiAutoFill('title');
+},true);
+
+
 function autoDeadline(){
   const pri=document.getElementById('d-priority')?.value;
   const dlEl=document.getElementById('d-deadline');
   if(!pri||!dlEl)return;
-  const days=SLA_DAYS[pri];
+  const cpx=document.getElementById('d-complexity')?.value;
+  const priDays=SLA_DAYS[pri]||1;
+  const cpxDays=(typeof COMPLEXITY_DAYS!=='undefined'?COMPLEXITY_DAYS[cpx]:0)||0;
+  const days=Math.max(priDays, cpxDays);
   if(days===undefined)return;
-  if(days===0){dlEl.value='';return;}
   // Calcular dias úteis a partir de hoje
   const start=new Date();
   let added=0;
@@ -372,7 +480,7 @@ wfHtml+='</div>';
 if(cancelled) wfHtml='<div style="background:var(--errb);border:1px solid var(--err);border-radius:8px;padding:10px;text-align:center;font-weight:700;color:var(--err);font-size:12px;margin:8px 0">Demanda Cancelada</div>';
 
 // Priority SLA tooltip
-const priTip=`<span class="pri-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><div class="pri-tip-box"><div style="font-weight:700;font-size:10px;text-transform:uppercase;color:var(--t3);margin-bottom:6px;letter-spacing:.5px">SLA por Prioridade</div>${[['#10b981','Baixa','5 dias úteis'],['#3b82f6','Média','3 dias úteis'],['#f59e0b','Alta','1 dia útil'],['#ef4444','Urgente','ASAP']].map(([c,n,t])=>`<div class="pri-tip-row${d.priority===n?' active':''}"><span class="pri-tip-dot" style="background:${c}"></span>${n}<span style="margin-left:auto;font-family:'JetBrains Mono',monospace">${t}</span></div>`).join('')}</div></span>`;
+const priTip=`<span class="pri-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><div class="pri-tip-box"><div style="font-weight:700;font-size:10px;text-transform:uppercase;color:var(--t3);margin-bottom:6px;letter-spacing:.5px">SLA por Prioridade</div>${[['#10b981','Baixa','7 dias úteis'],['#3b82f6','Média','5 dias úteis'],['#f59e0b','Alta','3 dias úteis'],['#ef4444','Urgente','1 dia útil']].map(([c,n,t])=>`<div class="pri-tip-row${d.priority===n?' active':''}"><span class="pri-tip-dot" style="background:${c}"></span>${n}<span style="margin-left:auto;font-family:'JetBrains Mono',monospace">${t}</span></div>`).join('')}</div></span>`;
 
 // Deadline urgency
 let deadlineHtml=fmtDate(d.deadline);
@@ -472,7 +580,7 @@ ${d.needs_presidency_approval==1?`<div class="det-info-item"><span class="det-in
 ${d.approver_name?`<div class="det-info-item"><span class="det-info-label">Aprovado por</span><span class="det-info-val" style="font-size:11px">${esc(d.approver_name)} · ${timeAgo(d.presidency_approved_at)}</span></div>`:''}
 ${d.from_solicitation_id?`<div class="det-info-item"><span class="det-info-label">Origem</span><span class="det-info-val">Solicitação #${d.from_solicitation_id}</span></div>`:''}
 ${d.sprint_name?`<div class="det-info-item"><span class="det-info-label">Sprint</span><span class="det-info-val"><span class="sprint-bar" style="display:inline-flex;margin:0"><span class="sp-dot"></span>${esc(d.sprint_name)}</span></span></div>`:''}
-<div class="det-info-item"><span class="det-info-label">Complexidade</span><span class="det-info-val">${d.complexity||'Moderada'}</span></div>
+<div class="det-info-item"><span class="det-info-label">Complexidade</span><span class="det-info-val">${d.complexity||'Moderada'}</span></div><div class="det-info-item"><span class="det-info-label">Estimativa</span><span class="det-info-val" style="color:var(--acc);font-weight:600">${(typeof COMPLEXITY_DAYS!=='undefined'?COMPLEXITY_DAYS[d.complexity||'Moderada']:2)||2} dia(s)</span></div>
 ${d.started_at&&(d.review_at||d.completed_at)?`<div class="det-info-item"><span class="det-info-label">${d.completed_at?'Tempo Total':'Tempo Execução'}</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#10b981">${calcWorkTime(d.started_at,d.review_at||d.completed_at)}</span></div>`:d.started_at?`<div class="det-info-item"><span class="det-info-label">Em execução há</span><span class="det-info-val" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f59e0b">${calcWorkTime(d.started_at)}</span></div>`:''}
 </div></div>
 <div class="det-sec"><div class="det-sec-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Desenvolvedores</div>${devsDetail||'<span style="font-size:11px;color:var(--t3)">Nenhum dev atribuído</span>'}${delegateHtml}</div>
@@ -934,11 +1042,11 @@ html+=`</div></div></div>`;
 // Upcoming deadlines list
 const upcoming=demands.filter(d=>d.deadline&&d.deadline>=todayStr&&d.status!=='Concluída'&&d.status!=='Cancelada').sort((a,b)=>a.deadline.localeCompare(b.deadline));
 if(upcoming.length){
-  html+=`<div class="tbl-c" style="margin-top:20px"><div class="tbl-bar"><h3>${IC.clock} Próximos Prazos</h3><span class="badge s-andamento">${upcoming.length}</span></div><div style="overflow-x:auto"><table><thead><tr><th>Prazo</th><th>Demanda</th><th>Sistema</th><th>Prioridade</th><th>Status</th><th>Devs</th></tr></thead><tbody>`;
+  html+=`<div class="tbl-c" style="margin-top:20px"><div class="tbl-bar"><h3>${IC.clock} Próximos Prazos</h3><span class="badge s-andamento">${upcoming.length}</span></div><div style="overflow-x:auto"><table><thead><tr><th>Prazo</th><th>Demanda</th><th>Sistema</th><th>Tipo</th><th>Prioridade</th><th>Status</th><th>Devs</th></tr></thead><tbody>`;
   upcoming.slice(0,15).forEach(d=>{
     const diffDays=Math.ceil((new Date(d.deadline+'T12:00:00')-today)/(86400000));
     const urgStyle=diffDays<=2?'color:var(--err);font-weight:700':diffDays<=5?'color:var(--warn)':'color:var(--t2)';
-    html+=`<tr style="cursor:pointer" onclick="openDetail(${d.id})"><td style="font-family:'JetBrains Mono',monospace;font-size:11px;${urgStyle}">${fmtDate(d.deadline)} <span style="font-size:9px">(${diffDays}d)</span></td><td style="font-weight:600">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge" style="font-size:9px">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td style="font-size:10px">${esc(d.dev_names||'—')}</td></tr>`;
+    html+=`<tr style="cursor:pointer" onclick="openDetail(${d.id})"><td style="font-family:'JetBrains Mono',monospace;font-size:11px;${urgStyle}">${fmtDate(d.deadline)} <span style="font-size:9px">(${diffDays}d)</span></td><td style="font-weight:600">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td><span class="badge ${sClass(d.status)}">${d.status}</span></td><td style="font-size:10px">${esc(d.dev_names||'—')}</td></tr>`;
   });
   html+=`</tbody></table></div></div>`;
 }
@@ -1067,7 +1175,7 @@ const sq=document.getElementById('sol-f-search')?.value?.trim().toLowerCase()||'
 const filtered=sols.filter(s=>{if(sf&&s.status!==sf)return false;if(tf&&(s.type||'Melhoria')!==tf)return false;if(syf&&s.system_id!=syf)return false;if(sq){const idMatch=('#'+s.id).includes(sq)||String(s.id)===sq;const nameMatch=(s.requester_name||'').toLowerCase().includes(sq)||(s.title||'').toLowerCase().includes(sq)||(s.creator_name||'').toLowerCase().includes(sq);if(!idMatch&&!nameMatch)return false}return true});
 const totalFiltered=filtered.length;const paged=filtered.slice(0,solPage*SOL_PER_PAGE);const hasMore=paged.length<totalFiltered;
 let html=`<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-p" onclick="openSolModal()">${IC.bulb} Nova Solicitação</button><input type="text" id="sol-f-search" placeholder="Buscar # ou nome..." oninput="loadSolicitations(true)" autocomplete="off" data-lpignore="true" value="${sq}" style="padding:8px 12px;border-radius:8px;border:1px solid var(--bdr);background:var(--bg3);color:var(--t1);font-size:12px;width:160px;font-family:inherit"><a href="solicitacao.php" target="_blank" class="btn btn-g" style="font-size:12px;padding:8px 14px;display:inline-flex;align-items:center;gap:6px;text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Link Externo</a><select class="fsel" id="sol-f-status" onchange="loadSolicitations(true)"><option value="">Todos os status</option><option value="Pendente" ${sf==='Pendente'?'selected':''}>Pendente</option><option value="Aprovada" ${sf==='Aprovada'?'selected':''}>Aprovada</option><option value="Rejeitada" ${sf==='Rejeitada'?'selected':''}>Rejeitada</option><option value="Convertida" ${sf==='Convertida'?'selected':''}>Convertida</option></select><select class="fsel" id="sol-f-type" onchange="loadSolicitations(true)"><option value="">Todos os tipos</option><option value="Melhoria" ${tf==='Melhoria'?'selected':''}>Melhoria</option><option value="Correção" ${tf==='Correção'?'selected':''}>Correção</option><option value="Nova Funcionalidade" ${tf==='Nova Funcionalidade'?'selected':''}>Nova Funcionalidade</option><option value="Sugestão de Usuário" ${tf==='Sugestão de Usuário'?'selected':''}>Sugestão de Usuário</option></select><select class="fsel" id="sol-f-system" onchange="loadSolicitations(true)"><option value="">Todos os sistemas</option>${allSystems.map(s=>`<option value="${s.id}" ${syf==s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>`;
-html+=`<div class="tbl-c"><div class="tbl-bar"><h3>Solicitações</h3><span class="badge" style="background:var(--bg4)">${filtered.filter(s=>s.status==='Pendente').length} pendentes</span><span style="font-size:11px;color:var(--t3);margin-left:8px">${paged.length} de ${totalFiltered}</span></div><div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Título</th><th>Tipo</th><th>Sistema</th><th>Prioridade</th><th>Status</th><th>Solicitante</th><th>Analisado por</th><th>Data</th>${CAN_REVIEW?'<th>Ação</th>':''}</tr></thead><tbody>${paged.length?paged.map(s=>{const tpCls={'Melhoria':'s-andamento','Correção':'s-cancelada','Nova Funcionalidade':'s-aberta','Sugestão de Usuário':'s-aguardando'}[s.type||'Melhoria']||'';return`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--t3)">#${s.id}</td><td style="font-weight:600">${esc(s.title)}</td><td><span class="badge ${tpCls}" style="font-size:9px">${esc(s.type||'Melhoria')}</span></td><td><span class="tag">${esc(s.system_name||'—')}</span></td><td><span class="badge ${pClass(s.priority)}">${s.priority}</span></td><td><span class="badge ${{Pendente:'accept-pendente',Aprovada:'accept-aceita',Rejeitada:'accept-recusada',Convertida:'s-concluida'}[s.status]}">${s.status}</span></td><td>${esc(s.requester_name||s.creator_name||'—')+(s.requester_department?'<div style="font-size:10px;color:var(--t3)">'+esc(s.requester_department)+'</div>':'')}</td><td>${s.reviewer_name?esc(s.reviewer_name)+' <span style="font-size:9px;color:var(--t3)">'+fmtDT(s.reviewed_at)+'</span>':'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace">${fmtDT(s.created_at)}</td>${CAN_REVIEW?`<td onclick="event.stopPropagation()">${s.status==='Pendente'?`<button class="btn btn-ok btn-sm" onclick="openSolReview(${s.id})">Analisar</button>`:s.converted_demand_id?`<button class="btn btn-g btn-sm" onclick="openDetail(${s.converted_demand_id})">Ver demanda</button>`:''}</td>`:''}</tr>`}).join(''):'<tr><td colspan="10"><div class="empty"><p>Nenhuma solicitação encontrada</p></div></td></tr>'}</tbody></table></div>${hasMore?'<div style="text-align:center;padding:12px"><button class="btn btn-g" onclick="solPage++;loadSolicitations()">Carregar mais (${totalFiltered-paged.length} restantes)</button></div>':''}</div>`;
+html+=`<div class="tbl-c"><div class="tbl-bar"><h3>Solicitações</h3><span class="badge" style="background:var(--bg4)">${filtered.filter(s=>s.status==='Pendente').length} pendentes</span><span style="font-size:11px;color:var(--t3);margin-left:8px">${paged.length} de ${totalFiltered}</span></div><div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Título</th><th>Tipo</th><th>Sistema</th><th>Prioridade</th><th>Status</th><th>Solicitante</th><th>Analisado por</th><th>Data</th>${CAN_REVIEW?'<th>Ação</th>':''}</tr></thead><tbody>${paged.length?paged.map(s=>{const tpCls={'Melhoria':'s-andamento','Correção':'s-cancelada','Nova Funcionalidade':'s-aberta','Sugestão de Usuário':'s-aguardando'}[s.type||'Melhoria']||'';return`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--t3)">#${s.id}</td><td style="font-weight:600">${esc(s.title)}</td><td><span class="badge ${tpCls}">${esc(s.type||'Melhoria')}</span></td><td><span class="tag">${esc(s.system_name||'—')}</span></td><td><span class="badge ${pClass(s.priority)}">${s.priority}</span></td><td><span class="badge ${{Pendente:'accept-pendente',Aprovada:'accept-aceita',Rejeitada:'accept-recusada',Convertida:'s-concluida'}[s.status]}">${s.status}</span></td><td>${esc(s.requester_name||s.creator_name||'—')+(s.requester_department?'<div style="font-size:10px;color:var(--t3)">'+esc(s.requester_department)+'</div>':'')}</td><td>${s.reviewer_name?esc(s.reviewer_name)+' <span style="font-size:9px;color:var(--t3)">'+fmtDT(s.reviewed_at)+'</span>':'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace">${fmtDT(s.created_at)}</td>${CAN_REVIEW?`<td onclick="event.stopPropagation()">${s.status==='Pendente'?`<button class="btn btn-ok btn-sm" onclick="openSolReview(${s.id})">Analisar</button>`:s.converted_demand_id?`<button class="btn btn-g btn-sm" onclick="openDetail(${s.converted_demand_id})">Ver demanda</button>`:''}</td>`:''}</tr>`}).join(''):'<tr><td colspan="10"><div class="empty"><p>Nenhuma solicitação encontrada</p></div></td></tr>'}</tbody></table></div>${hasMore?'<div style="text-align:center;padding:12px"><button class="btn btn-g" onclick="solPage++;loadSolicitations()">Carregar mais (${totalFiltered-paged.length} restantes)</button></div>':''}</div>`;
 document.getElementById('sol-content').innerHTML=html;
 const si=document.getElementById('sol-f-search');if(si&&sq){si.value=sq;si.focus();si.setSelectionRange(sq.length,sq.length)}
 const pendCount=sols.filter(s=>s.status==='Pendente').length;
@@ -2108,7 +2216,7 @@ showToast(IC.check+' PDF exportado!');
 // ===== APPROVALS =====
 async function loadApprovals(){const[pending,rejected]=await Promise.all([api('demands',{params:{presidency_status:'Pendente'}})||[],api('demands',{params:{presidency_status:'Rejeitada'}})||[]]);
 let html=`<div class="tbl-c"><div class="tbl-bar"><h3>${IC_CROWN} Aguardando Aprovação da Presidência</h3><span class="badge s-aguardando">${(pending||[]).length} pendentes</span></div><div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Demanda</th><th>Sistema</th><th>Prioridade</th><th>Solicitante</th><th>Devs</th><th>Ações</th></tr></thead><tbody>`;
-if(pending&&pending.length){pending.forEach(d=>{html+=`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--t3)">#${d.id}</td><td style="font-weight:600;cursor:pointer" onclick="openDetail(${d.id})">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge" style="font-size:9px">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td>${esc(d.requester||'—')}</td><td>${devsHtml(d.devs)}</td><td onclick="event.stopPropagation()"><button class="btn btn-gold btn-sm" onclick="openApproval(${d.id},'${esc(d.title)}')">${IC_CROWN} Analisar</button></td></tr>`})}
+if(pending&&pending.length){pending.forEach(d=>{html+=`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--t3)">#${d.id}</td><td style="font-weight:600;cursor:pointer" onclick="openDetail(${d.id})">${esc(d.title)}</td><td><span class="tag">${esc(d.system_name||'—')}</span></td><td><span class="badge">${esc(d.type||'Melhoria')}</span></td><td><span class="badge ${pClass(d.priority)}">${d.priority}</span></td><td>${esc(d.requester||'—')}</td><td>${devsHtml(d.devs)}</td><td onclick="event.stopPropagation()"><button class="btn btn-gold btn-sm" onclick="openApproval(${d.id},'${esc(d.title)}')">${IC_CROWN} Analisar</button></td></tr>`})}
 else html+='<tr><td colspan="7"><div class="empty" style="padding:16px"><p>Nenhuma pendente</p></div></td></tr>';
 html+=`</tbody></table></div></div>`;
 
@@ -2181,6 +2289,50 @@ html+=`<div class="fg"><label>Email ${emailNote}</label><input id="pf-email" val
 html+=`<div class="fg"><label>Cor do Avatar</label><input type="color" id="pf-color" value="${p.avatar_color||'#3b82f6'}" style="height:36px;width:100%"></div>`;
 html+=`<div class="fg" style="display:flex;align-items:flex-end"><button class="btn btn-p btn-sm" onclick="saveProfile()" style="padding:8px 20px">${IC.check} Salvar</button></div></div></div>`;
 
+// Email Notifications - Granular v2
+const _emailPrefs=(() => { try { return JSON.parse(p.email_prefs||'{}') } catch(e) { return {} } })();
+const _epDefs={demandas:1,solicitacoes:1,automacoes:1,reunioes:1,avisos:1,comentarios:1,aprovacoes:1,relatorio:1};
+const _ep={..._epDefs,..._emailPrefs};
+const _epSvg={
+  demandas:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  solicitacoes:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>',
+  automacoes:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  reunioes:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  avisos:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11l18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>',
+  comentarios:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  aprovacoes:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2z"/></svg>',
+  relatorio:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="21" x2="21" y2="21"/></svg>'
+};
+const _epItems=[
+  {key:'demandas',label:'Demandas',desc:'Atribuicao, status, conclusao'},
+  {key:'solicitacoes',label:'Solicitacoes',desc:'Aprovacao e rejeicao'},
+  {key:'automacoes',label:'Automacoes',desc:'Auto-aprovacao e conclusao'},
+  {key:'reunioes',label:'Reunioes',desc:'Novas reunioes e lembretes'},
+  {key:'avisos',label:'Avisos',desc:'Comunicados do sistema'},
+  {key:'comentarios',label:'Comentarios',desc:'Comentarios e mencoes'},
+  {key:'aprovacoes',label:'Aprovacoes',desc:'Presidencia e revisoes'},
+  {key:'relatorio',label:'Relatorio Semanal',desc:'Resumo com cards do dashboard'}
+];
+html+=`<div class="tbl-c" style="padding:20px">`;
+html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><h3 style="font-size:14px;margin:0">Notificacoes por Email</h3></div><div style="display:flex;gap:6px"><button class="btn btn-g btn-sm" onclick="sendTestEmail()" id="btn-test-email" style="font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Teste</button><button class="btn btn-g btn-sm" onclick="sendReportEmail()" id="btn-report-email" style="font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Relatorio</button></div></div>`;
+html+=`<label style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg4);border-radius:10px;cursor:pointer;border:1px solid ${p.email_notifications==1?'var(--ok)':'var(--bdr)'};margin-bottom:14px"><input type="checkbox" id="pf-email-notif" onchange="toggleEmailNotif()" style="width:20px;height:20px;accent-color:var(--ok)" ${p.email_notifications==1?'checked':""}><div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--t1)">Ativar notificacoes por email</div><div style="font-size:11px;color:var(--t3)">Enviar para: ${esc(p.email)}</div></div><span style="font-size:10px;padding:3px 8px;border-radius:12px;background:${p.email_notifications==1?'var(--okb)':'var(--bg3)'};color:${p.email_notifications==1?'var(--ok)':'var(--t3)'};font-weight:700">${p.email_notifications==1?'ATIVO':'OFF'}</span></label>`;
+html+=`<div id="email-prefs-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;opacity:${p.email_notifications==1?'1':'0.4'};pointer-events:${p.email_notifications==1?'auto':'none'};transition:opacity .3s">`;
+_epItems.forEach(function(item){
+  var on=_ep[item.key]?true:false;
+  var bg=on?"rgba(99,102,241,.06)":"var(--bg3)";
+  var bc=on?"rgba(99,102,241,.25)":"var(--bdr)";
+  var ic=on?"var(--acc)":"var(--t3)";
+  var chk=on?" checked":"";
+  var svg=_epSvg[item.key]||"";
+  html+="<label style=\"display:flex;align-items:center;gap:8px;padding:8px 10px;background:"+bg+";border:1px solid "+bc+";border-radius:8px;cursor:pointer;transition:all .15s\">";
+  html+="<input type=\"checkbox\" class=\"ep-cb\" data-key=\""+item.key+"\""+chk+" onchange=\"saveEmailPrefs()\" style=\"width:15px;height:15px;accent-color:var(--acc);flex-shrink:0\">";
+  html+="<div style=\"display:flex;align-items:center;gap:6px;flex:1\">";
+  html+="<span style=\"color:"+ic+";flex-shrink:0;display:flex\">"+svg+"</span>";
+  html+="<div><div style=\"font-size:11px;font-weight:600;color:var(--t1)\">"+item.label+"</div>";
+  html+="<div style=\"font-size:9px;color:var(--t3)\">"+item.desc+"</div></div></div></label>";
+});
+html+=`</div></div>`;
+
 // Change Password
 html+=`<div class="tbl-c" style="padding:20px">`;
 html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="3"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><h3 style="font-size:14px;margin:0">Alterar Senha</h3></div>`;
@@ -2193,7 +2345,7 @@ html+=`<div class="fg" style="display:flex;align-items:flex-end"><button class="
 if(s.avg_days!==null&&s.avg_days!==undefined){
 html+=`<div class="tbl-c" style="padding:20px">`;
 html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><h3 style="font-size:14px;margin:0">Tempo Médio de Entrega</h3></div>`;
-html+=`<div style="text-align:center;padding:8px 0"><span style="font-size:32px;font-weight:800;color:var(--acc)">${s.avg_days}</span><span style="font-size:13px;color:var(--t3);margin-left:4px">dias</span></div>`;
+html+=`<div style="text-align:center;padding:8px 0"><span style="font-size:32px;font-weight:800;color:var(--acc)">${s.avg_days?Math.round(parseFloat(s.avg_days)*24):0}</span><span style="font-size:13px;color:var(--t3);margin-left:4px">horas</span></div>`;
 html+=`</div>`}
 
 // By Priority
@@ -2212,16 +2364,6 @@ html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><
 s.by_system.forEach(sys=>{const w=s.total?Math.round(sys.c/s.total*100):0;
 html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="flex:1;font-size:11px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sys.name||'Sem sistema')}</span><div style="width:100px;height:6px;background:var(--bg);border-radius:3px;overflow:hidden"><div style="height:100%;width:${w}%;background:var(--acc);border-radius:3px"></div></div><span style="font-size:11px;font-weight:600;width:24px;text-align:right">${sys.c}</span></div>`});
 html+=`</div>`}
-
-// Monthly
-if(s.monthly&&s.monthly.length){
-html+=`<div class="tbl-c" style="padding:20px">`;
-html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><h3 style="font-size:14px;margin:0">Entregas Mensais</h3></div>`;
-const maxM=Math.max(...s.monthly.map(m=>m.c),1);
-html+=`<div style="display:flex;align-items:flex-end;gap:6px;height:80px;padding-top:8px">`;
-s.monthly.forEach(m=>{const h=Math.max((m.c/maxM)*64,4);const lbl=m.mes.split('-')[1];
-html+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:10px;font-weight:700;color:var(--t1)">${m.c}</span><div style="width:100%;height:${h}px;background:linear-gradient(to top,var(--acc),var(--acc)80);border-radius:4px 4px 0 0;transition:height .5s"></div><span style="font-size:9px;color:var(--t3)">${lbl}</span></div>`});
-html+=`</div></div>`}
 
 // Recent Demands
 if(s.recent_demands&&s.recent_demands.length){
@@ -2388,7 +2530,7 @@ let badges=roles.map(r=>`<span style="display:inline-flex;align-items:center;gap
 const lastLogin=u.last_login?`<span style="color:var(--suc)">${IC.clock} ${fmtDT(u.last_login)}</span>`:`<span style="color:var(--t3)">Nunca acessou</span>`;
 html+=`<div class="card${blocked?' opacity-50':''}" style="position:relative;overflow:hidden" data-uid="${u.id}">
 ${blocked?'<div style="position:absolute;top:8px;right:8px;padding:2px 8px;border-radius:4px;background:var(--err);color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Bloqueado</div>':''}
-<div class="card-h" style="border:none;padding-bottom:4px"><div style="display:flex;align-items:center;gap:12px">${avatarHtml(u,42)}<div><div style="font-weight:700;font-size:14px">${esc(u.name)}</div><div style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="3"/><polyline points="22,4 12,13 2,4"/></svg> ${esc(u.email)}</div></div></div></div>
+<div class="card-h" style="border:none;padding-bottom:4px"><div style="display:flex;align-items:center;gap:12px">${avatarHtml(u,42)}<div><div style="font-weight:700;font-size:14px">${esc(u.name)}</div><div style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="3"/><polyline points="22,4 12,13 2,4"/></svg> ${esc(p.email)}</div></div></div></div>
 <div style="padding:0 16px 8px;display:flex;flex-wrap:wrap;gap:4px">${badges}</div>
 <div class="card-b" style="font-size:11px;color:var(--t3);display:flex;flex-direction:column;gap:4px;padding-top:8px;border-top:1px solid var(--bdr)">
 <div style="display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> ${lastLogin}</div>
@@ -2569,7 +2711,7 @@ if (typeof IS_ADMIN !== 'undefined' && IS_ADMIN) {
 
 
 // Hook: auto-deadline ao mudar prioridade
-document.addEventListener('change',function(e){if(e.target&&e.target.id==='d-priority')autoDeadline()});
+document.addEventListener('change',function(e){if(e.target&&(e.target.id==='d-priority'||e.target.id==='d-complexity'))autoDeadline()});
 
 // ===== CHECKLIST =====
 async function loadChecklist(did,container){
@@ -2629,8 +2771,8 @@ loadMyPerms().then(()=>{applyPerms();loadDashboard()});loadNotifCount();pollNewN
 setInterval(updateClock,1000);
 initPonto();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadNotifCount();pollNewNotifs();const pg=getCurrentPage();if(pg==='dashboard')loadDashboard();else if(pg==='kanban')loadKanban();else if(pg==='demandas')loadDemands()}});
-setInterval(()=>{if(document.hidden)return;loadNotifCount();pollNewNotifs();checkDeadlines()},2000);
-setInterval(()=>{if(document.hidden)return;const pg=getCurrentPage();if(pg==='dashboard')loadDashboard();else if(pg==='kanban')loadKanban();else if(pg==='demandas')loadDemands();else if(pg==='notificacoes')loadNotificacoes()},5000)})();
+setInterval(()=>{if(document.hidden)return;loadNotifCount();pollNewNotifs();checkDeadlines();api("check_pending_accept");if(IS_ADMIN)api("auto_process")},30000);
+setInterval(()=>{if(document.hidden)return;if(document.querySelector('.modal-o.show'))return;const pg=getCurrentPage();if(pg==='dashboard')loadDashboard();else if(pg==='kanban')loadKanban();else if(pg==='demandas')loadDemands();else if(pg==='notificacoes')loadNotificacoes()},60000)})();
 
 // ===== DOCUMENTATIONS PAGE =====
 async function loadDocs(){
@@ -3615,32 +3757,34 @@ if(_origLoadPerfil){
     if(content) observer.observe(content, {childList:true, subtree:true, attributes:true, attributeFilter:['src']});
 })();
 
-// Override uploadAvatar para atualizar sidebar
-var _origUploadAvatar = window.uploadAvatar;
-window.uploadAvatar = async function(file){
+// Override uploadAvatar para atualizar sidebar (usa XHR para evitar interceptação)
+window.uploadAvatar = function(file){
     if(!file) return;
-    const fd = new FormData();
+    var fd = new FormData();
     fd.append('avatar', file);
-    const r = await fetch('api.php?action=profile_avatar', {method:'POST', body:fd});
-    const d = await r.json();
-    if(d.success){
-        ME.avatar_file = d.filename;
-        showToast(IC.check+' Foto atualizada!');
-        // Atualizar sidebar
-        var sbAv = document.querySelector('.sb-user .av');
-        if(sbAv){
-            var newSrc = 'api.php?action=arquivo&f=' + d.filename + '&t=' + Date.now();
-            var img = sbAv.querySelector('img');
-            if(img){
-                img.src = newSrc;
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'api.php?action=profile_avatar', true);
+    xhr.onload = function(){
+        try {
+            var d = JSON.parse(xhr.responseText);
+            if(d.success){
+                ME.avatar_file = d.filename;
+                showToast(IC.check+' Foto atualizada!');
+                var sbAv = document.querySelector('.sb-user .av');
+                if(sbAv){
+                    var newSrc = 'api.php?action=arquivo&f=' + d.filename + '&t=' + Date.now();
+                    var img = sbAv.querySelector('img');
+                    if(img){ img.src = newSrc; }
+                    else { sbAv.innerHTML = '<img src="'+newSrc+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">'; }
+                }
+                loadProfile();
             } else {
-                sbAv.innerHTML = '<img src="'+newSrc+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">';
+                alert(d.error || 'Erro no upload');
             }
-        }
-        loadProfile();
-    } else {
-        alert(d.error || 'Erro no upload');
-    }
+        } catch(e){ alert('Erro no upload'); }
+    };
+    xhr.onerror = function(){ alert('Erro de conexão'); };
+    xhr.send(fd);
 };
 
 // ============================================================
@@ -4311,4 +4455,61 @@ document.addEventListener('DOMContentLoaded', () => {
 // Fallback se DOMContentLoaded já passou
 if (document.readyState !== 'loading') {
   // setTimeout(initTopbarPontoTimer, 1500); // DESATIVADO
+}
+
+// ===== PAINEL AUTOMAÇÕES (Admin) =====
+async function loadAutoConfig(){
+  if(!IS_ADMIN) return;
+  var cfg = await api('system_config') || {};
+  var autoApprove = cfg.auto_approve_solicitations == '1';
+  var autoComplete = cfg.auto_complete_reviews == '1';
+  var timeout = cfg.auto_timeout_hours || '6';
+  var el = document.getElementById('auto-config-panel');
+  if(!el) return;
+  var html = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
+  html += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  html += '<span style="font-weight:700;font-size:14px">Automações</span></div>';
+  html += '<div style="display:flex;flex-direction:column;gap:10px">';
+  // Toggle 1
+  html += '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg4);border-radius:8px;cursor:pointer;border:1px solid '+(autoApprove?'var(--ok)':'var(--bdr)')+'">';
+  html += '<input type="checkbox" id="cfg-auto-approve" '+(autoApprove?'checked':'')+' onchange="saveAutoConfig()" style="width:18px;height:18px;accent-color:var(--ok)">';
+  html += '<div style="flex:1"><div style="font-weight:600;font-size:13px;color:var(--t1)">Auto-aprovar solicitações</div>';
+  html += '<div style="font-size:11px;color:var(--t3)">Solicitações pendentes há mais de '+timeout+'h serão aprovadas automaticamente</div></div>';
+  html += '<span style="font-size:10px;padding:3px 8px;border-radius:12px;background:'+(autoApprove?'var(--okb)':'var(--bg3)')+';color:'+(autoApprove?'var(--ok)':'var(--t3)')+';font-weight:700">'+(autoApprove?'ATIVO':'OFF')+'</span></label>';
+  // Toggle 2
+  html += '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg4);border-radius:8px;cursor:pointer;border:1px solid '+(autoComplete?'var(--ok)':'var(--bdr)')+'">';
+  html += '<input type="checkbox" id="cfg-auto-complete" '+(autoComplete?'checked':'')+' onchange="saveAutoConfig()" style="width:18px;height:18px;accent-color:var(--ok)">';
+  html += '<div style="flex:1"><div style="font-weight:600;font-size:13px;color:var(--t1)">Auto-concluir revisões</div>';
+  html += '<div style="font-size:11px;color:var(--t3)">Demandas em revisão há mais de '+timeout+'h serão concluídas automaticamente</div></div>';
+  html += '<span style="font-size:10px;padding:3px 8px;border-radius:12px;background:'+(autoComplete?'var(--okb)':'var(--bg3)')+';color:'+(autoComplete?'var(--ok)':'var(--t3)')+';font-weight:700">'+(autoComplete?'ATIVO':'OFF')+'</span></label>';
+  // Timeout selector
+  html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg4);border-radius:8px">';
+  html += '<span style="font-size:12px;color:var(--t2);font-weight:600">Tempo limite:</span>';
+  html += '<select id="cfg-auto-timeout" onchange="saveAutoConfig()" style="background:var(--bg3);border:1px solid var(--bdr);color:var(--t1);padding:4px 8px;border-radius:6px;font-size:12px">';
+  ['3','6','12','24','48'].forEach(function(v){ html += '<option value="'+v+'"'+(timeout==v?' selected':'')+'>'+v+' horas</option>'; });
+  html += '</select></div></div>';
+  el.innerHTML = html;
+}
+
+async function saveAutoConfig(){
+  var r = await api('system_config',{method:'POST',body:{
+    auto_approve_solicitations: document.getElementById('cfg-auto-approve')?.checked ? '1' : '0',
+    auto_complete_reviews: document.getElementById('cfg-auto-complete')?.checked ? '1' : '0',
+    auto_timeout_hours: document.getElementById('cfg-auto-timeout')?.value || '6'
+  }});
+  if(r?.success){ showToast(IC.check+' Configuração salva'); loadAutoConfig(); }
+}
+
+// ===== EMAIL NOTIFICATION TOGGLE =====
+async function toggleEmailNotif(){
+  var cb=document.getElementById('pf-email-notif');if(!cb)return;
+  var en=cb.checked?1:0;
+  var r=await api('profile_email_toggle',{method:'POST',body:{email_notifications:en}});
+  if(r?.success){
+    showToast(en?'Notificacoes por email ativadas':'Notificacoes desativadas');
+    var grid=document.getElementById('email-prefs-grid');
+    if(grid){grid.style.opacity=en?'1':'0.4';grid.style.pointerEvents=en?'auto':'none';}
+    var label=cb.closest('label');
+    if(label){label.style.borderColor=en?'var(--ok)':'var(--bdr)';var badge=label.querySelector('span:last-child');if(badge){badge.textContent=en?'ATIVO':'OFF';badge.style.background=en?'var(--okb)':'var(--bg3)';badge.style.color=en?'var(--ok)':'var(--t3)';}}
+  }
 }

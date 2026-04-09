@@ -9,6 +9,7 @@ ini_set('log_errors', 1);
 
 require_once __DIR__.'/config.php';
 require_once __DIR__.'/push-api.php';
+require_once __DIR__.'/email-notify.php';
 initSession();
 header('Content-Type:application/json;charset=utf-8');
 
@@ -140,6 +141,16 @@ if(empty($_SESSION['_migrated'])){
         INDEX idx_demand (demand_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");}catch(Exception $e){}
     $_SESSION["_migrated"]=1;
+    // Tabela de configurações do sistema
+    try{$db->exec("CREATE TABLE IF NOT EXISTS system_config (
+        config_key VARCHAR(100) PRIMARY KEY,
+        config_value TEXT,
+        updated_by INT DEFAULT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Defaults
+    $db->exec("INSERT IGNORE INTO system_config (config_key,config_value) VALUES ('auto_approve_solicitations','1'),('auto_complete_reviews','1'),('auto_timeout_hours','6')");
+    }catch(Exception $e){}
     // Complexidade e métricas
     $metricCols = [
         ['demandas','type',"ENUM('Melhoria','Correção','Nova Funcionalidade','Sugestão de Usuário') DEFAULT 'Melhoria'"],
@@ -147,6 +158,8 @@ if(empty($_SESSION['_migrated'])){
         ['demandas','effort_points',"TINYINT UNSIGNED DEFAULT 0"],
         ['demandas','started_at',"DATETIME DEFAULT NULL"],
         ['usuarios','work_hours',"TINYINT DEFAULT 6"],
+        ['usuarios','email_notifications',"TINYINT(1) DEFAULT 0"],
+        ['usuarios','email_prefs',"TEXT DEFAULT NULL"],
         ['solicitacoes','complexity',"ENUM('Simples','Moderada','Complexa','Muito Complexa') DEFAULT NULL"],
         ['solicitacoes','requester_name','VARCHAR(150) DEFAULT NULL'],
         ['solicitacoes','requester_department','VARCHAR(150) DEFAULT NULL'],
@@ -261,6 +274,23 @@ if($act==='check_deadlines'){
     }
     jsonR($warnings);
 }
+// ===== LEMBRETE DIÁRIO: DEMANDAS PENDENTES DE ACEITE =====
+if($act==='check_pending_accept'){
+    $pending=$db->prepare("SELECT dd.demand_id,d.title,d.priority FROM devs_demandas dd JOIN demandas d ON dd.demand_id=d.id WHERE dd.user_id=? AND dd.acceptance='Pendente' AND d.status NOT IN('Concluída','Cancelada')");
+    $pending->execute([$UID]);
+    $pList=$pending->fetchAll();
+    $reminded=0;
+    foreach($pList as $p){
+        $chk=$db->prepare("SELECT 1 FROM notificacoes WHERE user_id=? AND type='accept_reminder' AND entity_id=? AND created_at>DATE_SUB(NOW(),INTERVAL 24 HOUR)");
+        $chk->execute([$UID,$p['demand_id']]);
+        if(!$chk->fetch()){
+            notify($UID,'accept_reminder','Demanda pendente de aceite: '.$p['title'],$p['priority'],'demand:'.$p['demand_id'],'demand',$p['demand_id']);
+            sendPushToUser($db,(int)$UID,['title'=>'📋 Aceite Pendente','message'=>'Você tem demanda aguardando aceite: '.$p['title'],'url'=>'/index.php#demandas']);
+            $reminded++;
+        }
+    }
+    jsonR(['success'=>true,'pending'=>count($pList),'reminded'=>$reminded]);
+}
 if($act==='notification_read'&&isset($_GET['id'])){
     $db->prepare("UPDATE notificacoes SET is_read=1 WHERE id=? AND user_id=?")->execute([$_GET['id'],$UID]);
     jsonR(['success'=>true]);
@@ -278,7 +308,7 @@ if($act==='stats'){
         SUM(d.status='Aberta') as abertas, SUM(d.status='Aguardando Aceite') as aguardando,
         SUM(d.status='Em Andamento') as andamento, SUM(d.status='Em Revisão') as revisao,
         SUM(d.status='Concluída') as concluidas, SUM(d.status='Cancelada') as canceladas,
-        SUM(d.priority='Urgente' AND d.status NOT IN('Concluída','Cancelada')) as urgentes,
+        SUM(d.priority='Urgente' AND d.status NOT IN('Concluída','Cancelada')) as urgentes,SUM(d.deadline IS NOT NULL AND d.deadline<CURDATE() AND d.status NOT IN('Concluída','Cancelada')) as atrasadas,
         SUM(d.needs_presidency_approval=1 AND d.presidency_status='Pendente') as pend_pres
     FROM demandas d".$w);
     $s->execute($p); jsonR($s->fetch());
@@ -573,6 +603,8 @@ if($act==='demand_delegate'&&isset($_GET['id'])){
     $db->prepare("INSERT INTO devs_demandas (demand_id,user_id,assigned_by,acceptance) VALUES (?,?,?,'Pendente')")->execute([$id,$targetId,$UID]);
     if($IS_DEV&&($d['remove_self']??false)){
         $db->prepare("DELETE FROM devs_demandas WHERE demand_id=? AND user_id=?")->execute([$id,$UID]);
+        $db->prepare("UPDATE demandas SET status='Aguardando Aceite' WHERE id=? AND status NOT IN('Concluída','Cancelada')")->execute([$id]);
+        $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value) VALUES (?,?,?,?,?)")->execute([$id,$UID,'Transferiu para',$demRow['status'],'Aguardando Aceite']);
         $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,?,?)")->execute([$id,$UID,'Delegou para',$tgtName]);
     } else {
         $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value) VALUES (?,?,?,?)")->execute([$id,$UID,'Adicionou dev',$tgtName]);
@@ -1343,7 +1375,7 @@ if($act==='avisos'){
         if($IS_DIR) $targetRoles[]="'diretor'";
         if($IS_PRES) $targetRoles[]="'presidencia'";
         if($IS_USER) $targetRoles[]="'usuario'";
-        $w[]="n.target_role IN(".implode(',',$targetRoles).")";
+        if($IS_ADMIN||$IS_DIR){$w[]="1=1";}else{$w[]="(n.target_role IN(".implode(',',$targetRoles).") OR n.created_by=".$UID.")";}
         $s=$db->prepare("SELECT n.*,u.name as author_name FROM avisos n LEFT JOIN usuarios u ON n.created_by=u.id WHERE ".implode(' AND ',$w)." ORDER BY n.pinned DESC,n.created_at DESC");
         $s->execute($p); jsonR($s->fetchAll());
     }
@@ -1746,7 +1778,7 @@ if($act==='audit'){
     $s2=$db->prepare("SELECT COUNT(*) as total FROM registro_atividades a WHERE ".implode(' AND ',$w));
     $s2->execute($p);
     $total=$s2->fetch()['total'];
-    $s3=$db->query("SELECT u.name,u.role,COUNT(a.id) as actions FROM registro_atividades a JOIN usuarios u ON a.user_id=u.id GROUP BY a.user_id ORDER BY actions DESC LIMIT 20");
+    $s3=$db->query("SELECT u.name,u.role,COUNT(a.id) as actions FROM registro_atividades a JOIN usuarios u ON a.user_id=u.id WHERE u.active=1 GROUP BY a.user_id ORDER BY actions DESC LIMIT 20");
     $byUser=$s3->fetchAll();
     $s4=$db->query("SELECT entity_type,COUNT(*) as c FROM registro_atividades WHERE entity_type IS NOT NULL GROUP BY entity_type ORDER BY c DESC");
     $byType=$s4->fetchAll();
@@ -1819,7 +1851,7 @@ if($act==='pastas_notas'){
 // ===== PROFILE =====
 if($act==='profile'){
     if($method==='GET'){
-        $s=$db->prepare("SELECT id,name,email,role,avatar_color,avatar_file,last_login,created_at,work_hours FROM usuarios WHERE id=?");
+        $s=$db->prepare("SELECT id,name,email,role,avatar_color,avatar_file,last_login,created_at,work_hours,COALESCE(email_notifications,0) as email_notifications,email_prefs FROM usuarios WHERE id=?");
         $s->execute([$UID]);
         $u=$s->fetch();
         $st1=$db->prepare("SELECT COUNT(*) as c FROM devs_demandas WHERE user_id=?"); $st1->execute([$UID]);
@@ -1874,6 +1906,50 @@ if($act==='profile_avatar'&&$method==='POST'){
     $db->prepare("UPDATE usuarios SET avatar_file=? WHERE id=?")->execute([$filename,$UID]);
     logActivity($UID,'avatar_updated','user',$UID);
     jsonR(['success'=>true,'filename'=>$filename]);
+}
+if($act==='email_prefs'&&$method==='POST'){
+    $d=json_decode(file_get_contents('php://input'),true);
+    $prefs=json_encode($d['prefs']??[]);
+    $db->prepare("UPDATE usuarios SET email_prefs=? WHERE id=?")->execute([$prefs,$UID]);
+    jsonR(['success'=>true]);
+}
+
+if($act==='email_test'&&$method==='POST'){
+    require_once __DIR__.'/email-notify.php';
+    $u2=$db->prepare("SELECT email,name FROM usuarios WHERE id=?");$u2->execute([$UID]);$u2=$u2->fetch();
+    $to=$u2['email'];$nm=$u2['name'];
+    $subject='Teste de Email - GestãoDev ASSEGO';
+    $body='<h3 style="color:#10b981;margin:0 0 8px">Email de teste recebido</h3>';
+    $body.='<p style="color:#8899b8;margin:0">As notificacoes por email estao funcionando corretamente.</p>';
+    $body.='<p style="color:#5a6d8f;margin:8px 0 0;font-size:12px">Enviado em: '.date('d/m/Y H:i:s').'</p>';
+    $headers="From: GestãoDev ASSEGO <noreply@assego.org.br>\r\n";
+    $headers.="MIME-Version: 1.0\r\n";
+    $headers.="Content-Type: text/html; charset=UTF-8\r\n";
+    $hb="<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0a0e17;color:#e8ecf4;border-radius:12px;overflow:hidden;border:1px solid #2a3654'>";
+    $hb.="<div style='background:linear-gradient(135deg,#3b82f6,#8b5cf6);padding:20px 24px'><h1 style='margin:0;font-size:18px;color:#fff'>GestãoDev ASSEGO</h1></div>";
+    $hb.="<div style='padding:24px'><p style='margin:0 0 8px;color:#8899b8'>Ola, <strong style='color:#e8ecf4'>{$nm}</strong></p>";
+    $hb.="<div style='background:#111827;border:1px solid #2a3654;border-radius:8px;padding:16px;margin:12px 0'>".$body."</div>";
+    $hb.="<p style='margin:16px 0 0;font-size:12px;color:#5a6d8f'>Notificacao automatica.</p>";
+    $hb.="<a href='https://gestaodev.assego.com.br/gestaodev/' style='display:inline-block;margin-top:12px;padding:8px 16px;background:#3b82f6;color:#fff;text-decoration:none;border-radius:6px;font-size:13px'>Acessar</a></div></div>";
+    $sent=@mail($to,'=?UTF-8?B?'.base64_encode($subject).'?=',$hb,$headers);
+    logActivity($UID,'Email teste -> '.$to,'user',$UID);
+    jsonR(['success'=>true,'sent'=>$sent,'email'=>$to]);
+}
+
+if($act==='email_report'&&$method==='POST'){
+    require_once __DIR__.'/email-notify.php';
+    $sent=sendWeeklyReport($db,$UID);
+    jsonR(['success'=>true,'sent'=>$sent]);
+}
+
+if($act==='profile_email_toggle'&&$method==='POST'){
+    $d=json_decode(file_get_contents('php://input'),true);
+    $enabled=(int)($d['email_notifications']??0);
+    $db->prepare("UPDATE usuarios SET email_notifications=? WHERE id=?")->execute([$enabled,$UID]);
+    logActivity($UID,$enabled?'Email notifications ON':'Email notifications OFF','user',$UID);
+    if($enabled){ sendEmailNotification($db,$UID,'Notificacoes por email ativadas','<h3 style="color:#10b981;margin:0 0 8px">Notificacoes ativadas</h3><p style="color:#8899b8;margin:0">Voce recebera notificacoes por email sobre demandas, solicitacoes e automacoes do GestaDev ASSEGO.</p>'); }
+    if($enabled){ sendEmailNotification($db,$UID,'Notificacoes por email ativadas','<h3 style="color:#10b981;margin:0 0 8px">Notificacoes ativadas</h3><p style="color:#8899b8;margin:0">Voce recebera notificacoes por email sobre demandas, solicitacoes e automacoes do GestaDev ASSEGO.</p>'); }
+    jsonR(['success'=>true,'email_notifications'=>$enabled]);
 }
 if($act==='profile_password'&&$method==='POST'){
     $d=json_decode(file_get_contents('php://input'),true);
@@ -1953,7 +2029,7 @@ if($act==='admin_user_toggle'&&$method==='POST'){
 }
 
 // ===== NOTICE FORM (with image upload) =====
-if($act==='avisos_form'&&$method==='POST'){
+if($act==='avisos_form'&&$method==='POST'&&!isset($_GET['id'])){
     if(!meHasRole(['admin','presidencia','diretor'])) jsonR(['error'=>'Sem permissão'],403);
     $title=trim($_POST['title']??''); $content=trim($_POST['content']??'');
     $priority=$_POST['priority']??'normal'; $target=$_POST['target_role']??'todos';
@@ -2203,6 +2279,131 @@ if($act==='multi_demand_pending'){
     jsonR($s->fetchAll());
 }
 
+
+// ===== AUTO-PROCESS (automações) =====
+if($act==='auto_process'){
+    // Buscar configs
+    $cfgs=[];
+    try{$rows=$db->query("SELECT config_key,config_value FROM system_config")->fetchAll();foreach($rows as $r)$cfgs[$r['config_key']]=$r['config_value'];}catch(Exception $e){}
+    $autoApproveSol=(int)($cfgs['auto_approve_solicitations']??0);
+    $autoCompleteRev=(int)($cfgs['auto_complete_reviews']??0);
+    $timeoutH=(int)($cfgs['auto_timeout_hours']??6);
+    $processed=['solicitations'=>0,'reviews'=>0];
+
+    // Calcular datetime limite em horas ÚTEIS (8h-18h, seg-sex)
+    function calcBusinessHoursAgo($hours){
+        $now=new DateTime();
+        $remaining=$hours*60; // em minutos
+        $cur=clone $now;
+        while($remaining>0){
+            $cur->modify('-1 minute');
+            $dow=(int)$cur->format('N'); // 1=seg, 7=dom
+            $h=(int)$cur->format('G');
+            if($dow<=5 && $h>=8 && $h<18){
+                $remaining--;
+            }
+        }
+        return $cur->format('Y-m-d H:i:s');
+    }
+    $limitDate=calcBusinessHoursAgo($timeoutH);
+
+    // 1. Auto-aprovar solicitações pendentes há mais de X horas
+    if($autoApproveSol){
+        $pending=$db->prepare("SELECT s.*,sy.name as system_name FROM solicitacoes s LEFT JOIN sistemas sy ON s.system_id=sy.id WHERE s.status='Pendente' AND s.created_at<=?");
+        $pending->execute([$limitDate]);
+        $sols=$pending->fetchAll();
+        foreach($sols as $sol){
+            // Auto-aprovar e converter em demanda
+            $db->prepare("UPDATE solicitacoes SET status='Aprovada',reviewed_by=NULL,reviewed_at=NOW(),review_notes='Auto-aprovada após {$timeoutH}h sem análise' WHERE id=?")->execute([$sol['id']]);
+            
+            // Criar demanda
+            $solCreator=$db->prepare("SELECT name FROM usuarios WHERE id=?");$solCreator->execute([$sol['created_by']??0]);$creatorName=$solCreator->fetchColumn()?:('Solicitação #'.$sol['id']);
+            $db->prepare("INSERT INTO demandas (title,description,system_id,priority,status,requester,needs_presidency_approval,from_solicitation_id,created_by) VALUES (?,?,?,?,'Aguardando Aceite',?,0,?,?)")
+                ->execute([$sol['title'],$sol['description']??'',$sol['system_id'],$sol['priority']??'Média',$creatorName,$sol['id'],$sol['created_by']??$UID]);
+            $did=$db->lastInsertId();
+            $db->prepare("UPDATE solicitacoes SET status='Convertida',converted_demand_id=? WHERE id=?")->execute([$did,$sol['id']]);
+            
+            // Atribuir devs do sistema automaticamente
+            if($sol['system_id']){
+                $sysDevs=$db->prepare("SELECT user_id FROM devs_sistemas WHERE system_id=?");$sysDevs->execute([$sol['system_id']]);
+                $devIds=$sysDevs->fetchAll(PDO::FETCH_COLUMN);
+                $ins=$db->prepare("INSERT IGNORE INTO devs_demandas (demand_id,user_id,assigned_by) VALUES (?,?,0)");
+                foreach($devIds as $dvId){
+                    $ins->execute([$did,$dvId]);
+                    notify($dvId,'demand_assigned',"Nova demanda (auto-aprovada): {$sol['title']}",'',"demand:{$did}",'demand',$did);
+                    sendPushToUser($db,(int)$dvId,['title'=>'📋 Nova Demanda (Auto)','message'=>"Solicitação auto-aprovada: {$sol['title']}",'url'=>'/index.php#demandas']);
+                }
+            }
+            
+            // Histórico
+            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,new_value,details) VALUES (?,NULL,'Auto-aprovada','Aguardando Aceite',?)")->execute([$did,"Solicitação #{$sol['id']} auto-aprovada após {$timeoutH}h sem análise"]);
+            
+            // Notificar admins, diretores e presidencia
+            $notifyRoles=$db->query("SELECT id,name,role FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%' OR role LIKE '%presidencia%') AND active=1")->fetchAll();
+            foreach($notifyRoles as $a){
+                sendEmailNotification($db,$a['id'],"[AUTO] Solicitação aprovada","<h3 style='color:#10b981;margin:0 0 8px'>Solicitação #{$sol['id']} Auto-Aprovada</h3><p style='color:#8899b8;margin:0'>Sem análise em {$timeoutH}h úteis.<br>Título: <strong style='color:#e8ecf4'>{$sol['title']}</strong><br>Convertida em demanda #{$did}</p>");
+                notify($a['id'],'solicitation',"[AUTO] Solicitação #{$sol['id']} aprovada automaticamente","Sem análise em {$timeoutH}h úteis. Título: {$sol['title']}. Convertida em demanda #{$did}.","demand:{$did}",'demand',$did);
+                sendPushToUser($db,(int)$a['id'],['title'=>'⚙️ Auto-aprovação','message'=>"Solicitação #{$sol['id']} auto-aprovada: {$sol['title']}",'url'=>'/index.php#demandas']);
+            }
+            // Notificar solicitante
+            if($sol['created_by']){
+                notify($sol['created_by'],'solicitation_approved',"Sua solicitação #{$sol['id']} foi aprovada automaticamente e virou demanda #{$did}",'',"demand:{$did}",'demand',$did);
+                sendPushToUser($db,(int)$sol['created_by'],['title'=>'✅ Solicitação Aprovada','message'=>"Auto-aprovada: {$sol['title']}",'url'=>'/index.php#demandas']);
+            }
+            
+            $processed['solicitations']++;
+        }
+    }
+
+    // 2. Auto-concluir demandas em revisão há mais de X horas
+    if($autoCompleteRev){
+        $inReview=$db->prepare("SELECT d.id,d.title,d.review_at FROM demandas d WHERE d.status='Em Revisão' AND d.review_at IS NOT NULL AND d.review_at<=?");
+        $inReview->execute([$limitDate]);
+        $reviews=$inReview->fetchAll();
+        foreach($reviews as $rev){
+            $db->prepare("UPDATE demandas SET status='Concluída',completed_at=NOW() WHERE id=?")->execute([$rev['id']]);
+            $db->prepare("INSERT INTO historico_demandas (demand_id,user_id,action,old_value,new_value,details) VALUES (?,NULL,'Auto-concluída','Em Revisão','Concluída',?)")->execute([$rev['id'],"Auto-concluída após {$timeoutH}h em revisão sem análise"]);
+            
+            // Notificar devs
+            $devs=$db->prepare("SELECT user_id FROM devs_demandas WHERE demand_id=?");$devs->execute([$rev['id']]);
+            foreach($devs->fetchAll() as $dv){
+                notify($dv['user_id'],'demand_completed',"🎉 {$rev['title']}: Auto-concluída!",'',"demand:{$rev['id']}",'demand',$rev['id']);
+                sendPushToUser($db,(int)$dv['user_id'],['title'=>'🎉 Concluída!','message'=>"Auto-concluída: {$rev['title']}",'url'=>'/index.php#demandas']);
+            }
+            // Notificar admins, diretores e presidencia
+            $notifyRoles2=$db->query("SELECT id FROM usuarios WHERE (role LIKE '%admin%' OR role LIKE '%diretor%' OR role LIKE '%presidencia%') AND active=1")->fetchAll();
+            foreach($notifyRoles2 as $a){
+                sendEmailNotification($db,$a['id'],"[AUTO] Demanda concluída","<h3 style='color:#10b981;margin:0 0 8px'>Demanda #{$rev['id']} Auto-Concluída</h3><p style='color:#8899b8;margin:0'>Revisão sem análise em {$timeoutH}h úteis.<br>Título: <strong style='color:#e8ecf4'>{$rev['title']}</strong></p>");
+                notify($a['id'],'demand_completed',"[AUTO] Demanda #{$rev['id']} concluída automaticamente","Revisão sem análise em {$timeoutH}h úteis. Título: {$rev['title']}","demand:{$rev['id']}",'demand',$rev['id']);
+                sendPushToUser($db,(int)$a['id'],['title'=>'⚙️ Auto-conclusão','message'=>"Demanda #{$rev['id']} auto-concluída: {$rev['title']}",'url'=>'/index.php#demandas']);
+            }
+            
+            $processed['reviews']++;
+        }
+    }
+
+    jsonR(['success'=>true,'processed'=>$processed,'config'=>['auto_approve'=>$autoApproveSol,'auto_complete'=>$autoCompleteRev,'timeout_hours'=>$timeoutH]]);
+}
+
+// ===== CONFIG (admin) =====
+if($act==='system_config'){
+    if($method==='GET'){
+        $rows=$db->query("SELECT config_key,config_value FROM system_config")->fetchAll();
+        $cfgs=[];foreach($rows as $r)$cfgs[$r['config_key']]=$r['config_value'];
+        jsonR($cfgs);
+    }
+    if($method==='POST'){
+        if(!$IS_ADMIN) jsonR(['error'=>'Sem permissão'],403);
+        $d=json_decode(file_get_contents('php://input'),true);
+        $allowed=['auto_approve_solicitations','auto_complete_reviews','auto_timeout_hours'];
+        $st=$db->prepare("INSERT INTO system_config (config_key,config_value,updated_by) VALUES (?,?,?) ON DUPLICATE KEY UPDATE config_value=VALUES(config_value),updated_by=VALUES(updated_by)");
+        foreach($d as $k=>$v){
+            if(in_array($k,$allowed)) $st->execute([$k,$v,$UID]);
+        }
+        logActivity($UID,'Config atualizada','system',0,json_encode($d));
+        jsonR(['success'=>true]);
+    }
+}
 
 // ===== 404 FALLBACK =====
 
