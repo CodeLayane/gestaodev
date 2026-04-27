@@ -761,9 +761,9 @@ if($act==='demand_upload'&&isset($_GET['id'])){
         $chkDev=$db->prepare("SELECT 1 FROM devs_demandas WHERE demand_id=? AND user_id=?"); $chkDev->execute([$id,$UID]);
         if(!$chkDev->fetch()) jsonR(['error'=>'Sem permissão'],403);
     }
-    if(empty($_FILES['image'])) jsonR(['error'=>'Sem arquivo'],400);
+    if(empty($_FILES['image'])) jsonR(['error'=>'Sem arquivo (verifique limite de upload do PHP)'],400);
     $f=$_FILES['image']; if($f['error']!==0) jsonR(['error'=>'Erro upload: code '.$f['error']],400);
-    if($f['size']>20*1024*1024) jsonR(['error'=>'Arquivo muito grande (max 20MB)'],400);
+    if($f['size']>50*1024*1024) jsonR(['error'=>'Arquivo muito grande (max 50MB)'],400);
     $ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));
     $allExts=['png','jpg','jpeg','gif','webp','svg','bmp','ico','pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','csv','json','xml','html','css','js','php','py','sql','log','zip','rar','7z','mp4','mp3','wav','ogg','mov','avi'];
     if(!in_array($ext,$allExts)) jsonR(['error'=>'Formato nao permitido: '.$ext],400);
@@ -1915,31 +1915,24 @@ if($act==='email_prefs'&&$method==='POST'){
 }
 
 if($act==='email_test'&&$method==='POST'){
-    require_once __DIR__.'/email-notify.php';
-    $u2=$db->prepare("SELECT email,name FROM usuarios WHERE id=?");$u2->execute([$UID]);$u2=$u2->fetch();
-    $to=$u2['email'];$nm=$u2['name'];
-    $subject='Teste de Email - GestãoDev ASSEGO';
-    $body='<h3 style="color:#10b981;margin:0 0 8px">Email de teste recebido</h3>';
-    $body.='<p style="color:#8899b8;margin:0">As notificacoes por email estao funcionando corretamente.</p>';
-    $body.='<p style="color:#5a6d8f;margin:8px 0 0;font-size:12px">Enviado em: '.date('d/m/Y H:i:s').'</p>';
-    $headers="From: GestãoDev ASSEGO <noreply@assego.org.br>\r\n";
-    $headers.="MIME-Version: 1.0\r\n";
-    $headers.="Content-Type: text/html; charset=UTF-8\r\n";
-    $hb="<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0a0e17;color:#e8ecf4;border-radius:12px;overflow:hidden;border:1px solid #2a3654'>";
-    $hb.="<div style='background:linear-gradient(135deg,#3b82f6,#8b5cf6);padding:20px 24px'><h1 style='margin:0;font-size:18px;color:#fff'>GestãoDev ASSEGO</h1></div>";
-    $hb.="<div style='padding:24px'><p style='margin:0 0 8px;color:#8899b8'>Ola, <strong style='color:#e8ecf4'>{$nm}</strong></p>";
-    $hb.="<div style='background:#111827;border:1px solid #2a3654;border-radius:8px;padding:16px;margin:12px 0'>".$body."</div>";
-    $hb.="<p style='margin:16px 0 0;font-size:12px;color:#5a6d8f'>Notificacao automatica.</p>";
-    $hb.="<a href='https://gestaodev.assego.com.br/gestaodev/' style='display:inline-block;margin-top:12px;padding:8px 16px;background:#3b82f6;color:#fff;text-decoration:none;border-radius:6px;font-size:13px'>Acessar</a></div></div>";
-    $sent=@mail($to,'=?UTF-8?B?'.base64_encode($subject).'?=',$hb,$headers);
-    logActivity($UID,'Email teste -> '.$to,'user',$UID);
-    jsonR(['success'=>true,'sent'=>$sent,'email'=>$to]);
+        $u2=$db->prepare("SELECT email,name FROM usuarios WHERE id=?");$u2->execute([$UID]);$u2=$u2->fetch();
+    $body='<h3 style="color:#10b981;margin:0 0 8px;font-size:16px">Email de teste recebido!</h3>';
+    $body.='<p style="color:#94a3b8;margin:0;font-size:13px;line-height:1.6">As notificacoes por email do GestãoDev ASSEGO estao funcionando corretamente para este endereco.</p>';
+    $body.='<p style="color:#64748b;margin:12px 0 0;font-size:11px">Enviado em: '.date('d/m/Y H:i:s').'</p>';
+    $sent=_doSendEmail($u2['email'],$u2['name'],'Teste de Email — GestãoDev ASSEGO',$body);
+    logActivity($UID,'Email teste -> '.$u2['email'],'user',$UID);
+    jsonR(['success'=>true,'sent'=>$sent,'email'=>$u2['email']]);
 }
 
 if($act==='email_report'&&$method==='POST'){
-    require_once __DIR__.'/email-notify.php';
-    $sent=sendWeeklyReport($db,$UID);
-    jsonR(['success'=>true,'sent'=>$sent]);
+    try {
+        $d=json_decode(file_get_contents('php://input'),true);
+        $tipo=$d['tipo']??'diario';
+        $sent=sendReport($db,$UID,$tipo,true);
+        jsonR(['success'=>true,'sent'=>$sent]);
+    } catch(Throwable $e){
+        jsonR(['success'=>false,'error'=>$e->getMessage(),'file'=>$e->getFile(),'line'=>$e->getLine()],500);
+    }
 }
 
 if($act==='profile_email_toggle'&&$method==='POST'){
@@ -2447,7 +2440,25 @@ jsonR(['error'=>'Endpoint não encontrado'],404);
 
 // ============================================================
 // ============================================================
-} catch (Exception $e) {
+
+// ===== BOTTLENECK REPORT =====
+if($act==='bottleneck_report'){
+    if(!$IS_ADMIN&&!$IS_DIR&&!$IS_PRES) jsonR(['error'=>'Sem permissão'],403);
+    $dateFrom=$_GET['date_from']??date('Y-m-d',strtotime('-30 days'));
+    $dateTo=$_GET['date_to']??date('Y-m-d');
+    $df=$dateFrom.' 00:00:00'; $dt=$dateTo.' 23:59:59';
+    $stuck=$db->prepare("SELECT d.id,d.title,d.status,d.priority,s.name as system_name,DATEDIFF(NOW(),d.updated_at) as days_stuck,d.updated_at,GROUP_CONCAT(u.name SEPARATOR ', ') as devs FROM demandas d LEFT JOIN sistemas s ON d.system_id=s.id LEFT JOIN devs_demandas dd ON d.id=dd.demand_id LEFT JOIN usuarios u ON dd.user_id=u.id WHERE d.status NOT IN('Concluída','Cancelada') AND d.updated_at<DATE_SUB(NOW(),INTERVAL 3 DAY) GROUP BY d.id ORDER BY days_stuck DESC LIMIT 20");
+    $stuck->execute(); $stuckData=$stuck->fetchAll();
+    $sf=$db->prepare("SELECT status,COUNT(*) as total,ROUND(AVG(DATEDIFF(COALESCE(completed_at,NOW()),created_at)),1) as avg_days,MAX(DATEDIFF(COALESCE(completed_at,NOW()),created_at)) as max_days FROM demandas WHERE created_at BETWEEN ? AND ? GROUP BY status ORDER BY avg_days DESC");
+    $sf->execute([$df,$dt]); $sfData=$sf->fetchAll();
+    $sb=$db->prepare("SELECT s.name,s.id,COUNT(d.id) as total_open,SUM(CASE WHEN d.priority='Urgente' THEN 1 ELSE 0 END) as urgentes,SUM(CASE WHEN d.priority='Alta' THEN 1 ELSE 0 END) as altas,ROUND(AVG(DATEDIFF(NOW(),d.created_at)),1) as avg_age_days FROM sistemas s JOIN demandas d ON s.id=d.system_id WHERE d.status NOT IN('Concluída','Cancelada') GROUP BY s.id HAVING total_open>0 ORDER BY urgentes DESC,total_open DESC LIMIT 10");
+    $sb->execute(); $sbData=$sb->fetchAll();
+    $ov=$db->prepare("SELECT u.id,u.name,u.avatar_color,COUNT(dd.demand_id) as em_andamento,SUM(CASE WHEN d.priority='Urgente' THEN 1 ELSE 0 END) as urgentes,SUM(CASE WHEN d.deadline<CURDATE() THEN 1 ELSE 0 END) as atrasadas FROM usuarios u JOIN devs_demandas dd ON u.id=dd.user_id JOIN demandas d ON dd.demand_id=d.id WHERE d.status='Em Andamento' AND u.active=1 GROUP BY u.id ORDER BY em_andamento DESC");
+    $ov->execute(); $ovData=$ov->fetchAll();
+    $np=$db->prepare("SELECT COUNT(*) as sem_prazo,(SELECT COUNT(*) FROM demandas WHERE status NOT IN('Concluída','Cancelada')) as total_ativas FROM demandas WHERE deadline IS NULL AND status NOT IN('Concluída','Cancelada')");
+    $np->execute(); $npData=$np->fetch();
+    jsonR(['stuck_demands'=>$stuckData,'status_flow'=>$sfData,'sys_bottleneck'=>$sbData,'overloaded_devs'=>$ovData,'no_deadline'=>$npData,'date_from'=>$dateFrom,'date_to'=>$dateTo]);
+}} catch (Exception $e) {
     jsonR(['error'=>'Erro interno: '.$e->getMessage()],500);
 }
 // ============================================================

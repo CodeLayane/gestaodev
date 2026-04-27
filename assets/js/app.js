@@ -1407,7 +1407,7 @@ document.addEventListener('click',function(e){
 });
 
 async function loadReports(){
-const dateFrom=document.getElementById('rep-from')?.value||new Date(Date.now()-90*86400000).toISOString().split('T')[0];
+const dateFrom=document.getElementById('rep-from')?.value||new Date(Date.now()-1*86400000).toISOString().split('T')[0];
 const dateTo=document.getElementById('rep-to')?.value||new Date().toISOString().split('T')[0];
 var fSys=_repState.systems.join(',');
 var fDev=_repState.devs.join(',');
@@ -2289,50 +2289,22 @@ html+=`<div class="fg"><label>Email ${emailNote}</label><input id="pf-email" val
 html+=`<div class="fg"><label>Cor do Avatar</label><input type="color" id="pf-color" value="${p.avatar_color||'#3b82f6'}" style="height:36px;width:100%"></div>`;
 html+=`<div class="fg" style="display:flex;align-items:flex-end"><button class="btn btn-p btn-sm" onclick="saveProfile()" style="padding:8px 20px">${IC.check} Salvar</button></div></div></div>`;
 
-// Email Notifications - Granular v2
-const _emailPrefs=(() => { try { return JSON.parse(p.email_prefs||'{}') } catch(e) { return {} } })();
-const _epDefs={demandas:1,solicitacoes:1,automacoes:1,reunioes:1,avisos:1,comentarios:1,aprovacoes:1,relatorio:1};
-const _ep={..._epDefs,..._emailPrefs};
-const _epSvg={
-  demandas:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
-  solicitacoes:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>',
-  automacoes:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-  reunioes:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-  avisos:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11l18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>',
-  comentarios:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
-  aprovacoes:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2z"/></svg>',
-  relatorio:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="21" x2="21" y2="21"/></svg>'
-};
-const _epItems=[
-  {key:'demandas',label:'Demandas',desc:'Atribuicao, status, conclusao'},
-  {key:'solicitacoes',label:'Solicitacoes',desc:'Aprovacao e rejeicao'},
-  {key:'automacoes',label:'Automacoes',desc:'Auto-aprovacao e conclusao'},
-  {key:'reunioes',label:'Reunioes',desc:'Novas reunioes e lembretes'},
-  {key:'avisos',label:'Avisos',desc:'Comunicados do sistema'},
-  {key:'comentarios',label:'Comentarios',desc:'Comentarios e mencoes'},
-  {key:'aprovacoes',label:'Aprovacoes',desc:'Presidencia e revisoes'},
-  {key:'relatorio',label:'Relatorio Semanal',desc:'Resumo com cards do dashboard'}
-];
-html+=`<div class="tbl-c" style="padding:20px">`;
-html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><h3 style="font-size:14px;margin:0">Notificacoes por Email</h3></div><div style="display:flex;gap:6px"><button class="btn btn-g btn-sm" onclick="sendTestEmail()" id="btn-test-email" style="font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Teste</button><button class="btn btn-g btn-sm" onclick="sendReportEmail()" id="btn-report-email" style="font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Relatorio</button></div></div>`;
-html+=`<label style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg4);border-radius:10px;cursor:pointer;border:1px solid ${p.email_notifications==1?'var(--ok)':'var(--bdr)'};margin-bottom:14px"><input type="checkbox" id="pf-email-notif" onchange="toggleEmailNotif()" style="width:20px;height:20px;accent-color:var(--ok)" ${p.email_notifications==1?'checked':""}><div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--t1)">Ativar notificacoes por email</div><div style="font-size:11px;color:var(--t3)">Enviar para: ${esc(p.email)}</div></div><span style="font-size:10px;padding:3px 8px;border-radius:12px;background:${p.email_notifications==1?'var(--okb)':'var(--bg3)'};color:${p.email_notifications==1?'var(--ok)':'var(--t3)'};font-weight:700">${p.email_notifications==1?'ATIVO':'OFF'}</span></label>`;
-html+=`<div id="email-prefs-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;opacity:${p.email_notifications==1?'1':'0.4'};pointer-events:${p.email_notifications==1?'auto':'none'};transition:opacity .3s">`;
-_epItems.forEach(function(item){
-  var on=_ep[item.key]?true:false;
-  var bg=on?"rgba(99,102,241,.06)":"var(--bg3)";
-  var bc=on?"rgba(99,102,241,.25)":"var(--bdr)";
-  var ic=on?"var(--acc)":"var(--t3)";
-  var chk=on?" checked":"";
-  var svg=_epSvg[item.key]||"";
-  html+="<label style=\"display:flex;align-items:center;gap:8px;padding:8px 10px;background:"+bg+";border:1px solid "+bc+";border-radius:8px;cursor:pointer;transition:all .15s\">";
-  html+="<input type=\"checkbox\" class=\"ep-cb\" data-key=\""+item.key+"\""+chk+" onchange=\"saveEmailPrefs()\" style=\"width:15px;height:15px;accent-color:var(--acc);flex-shrink:0\">";
-  html+="<div style=\"display:flex;align-items:center;gap:6px;flex:1\">";
-  html+="<span style=\"color:"+ic+";flex-shrink:0;display:flex\">"+svg+"</span>";
-  html+="<div><div style=\"font-size:11px;font-weight:600;color:var(--t1)\">"+item.label+"</div>";
-  html+="<div style=\"font-size:9px;color:var(--t3)\">"+item.desc+"</div></div></div></label>";
-});
-html+=`</div></div>`;
-
+// Email Notifications
+const _ep=JSON.parse(p.email_prefs||'{}');
+const _mon=p.email_notifications==1;
+const _ic_users='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+const _ic_crown='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 20h20"/><path d="M4 20V10l4 4 4-8 4 8 4-4v10"/></svg>';
+html+=`<div class="tbl-c" style="padding:20px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><h3 style="font-size:14px;margin:0">Notificações por Email</h3></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg4);border-radius:10px;border:1px solid var(--bdr);margin-bottom:12px">
+  <div><div style="font-weight:700;font-size:13px;color:var(--t1)">Ativar notificações por email</div><div style="font-size:11px;color:var(--t3);margin-top:2px">Enviadas para ${esc(p.email)}</div></div>
+  <input type="checkbox" id="pf-email-notif" onchange="toggleEmailNotif()" style="width:20px;height:20px;accent-color:var(--acc);cursor:pointer" ${_mon?'checked':''}>
+</div>
+<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+  <button class="btn btn-w btn-sm" onclick="sendTestEmail()" style="display:flex;align-items:center;gap:6px">${IC.send} Enviar Teste</button>
+  <button class="btn btn-w btn-sm" onclick="sendReportEmail('diario')" style="display:flex;align-items:center;gap:6px">${IC.file} Relatório Diário</button>
+  <button class="btn btn-w btn-sm" onclick="sendReportEmail('semanal')" style="display:flex;align-items:center;gap:6px">${IC.file} Relatório Semanal</button>
+</div></div>`;
 // Change Password
 html+=`<div class="tbl-c" style="padding:20px">`;
 html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="3"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><h3 style="font-size:14px;margin:0">Alterar Senha</h3></div>`;
@@ -2530,7 +2502,7 @@ let badges=roles.map(r=>`<span style="display:inline-flex;align-items:center;gap
 const lastLogin=u.last_login?`<span style="color:var(--suc)">${IC.clock} ${fmtDT(u.last_login)}</span>`:`<span style="color:var(--t3)">Nunca acessou</span>`;
 html+=`<div class="card${blocked?' opacity-50':''}" style="position:relative;overflow:hidden" data-uid="${u.id}">
 ${blocked?'<div style="position:absolute;top:8px;right:8px;padding:2px 8px;border-radius:4px;background:var(--err);color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Bloqueado</div>':''}
-<div class="card-h" style="border:none;padding-bottom:4px"><div style="display:flex;align-items:center;gap:12px">${avatarHtml(u,42)}<div><div style="font-weight:700;font-size:14px">${esc(u.name)}</div><div style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="3"/><polyline points="22,4 12,13 2,4"/></svg> ${esc(p.email)}</div></div></div></div>
+<div class="card-h" style="border:none;padding-bottom:4px"><div style="display:flex;align-items:center;gap:12px">${avatarHtml(u,42)}<div><div style="font-weight:700;font-size:14px">${esc(u.name)}</div><div style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="3"/><polyline points="22,4 12,13 2,4"/></svg> ${esc(u.email)}</div></div></div></div>
 <div style="padding:0 16px 8px;display:flex;flex-wrap:wrap;gap:4px">${badges}</div>
 <div class="card-b" style="font-size:11px;color:var(--t3);display:flex;flex-direction:column;gap:4px;padding-top:8px;border-top:1px solid var(--bdr)">
 <div style="display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> ${lastLogin}</div>
@@ -4500,16 +4472,36 @@ async function saveAutoConfig(){
   if(r?.success){ showToast(IC.check+' Configuração salva'); loadAutoConfig(); }
 }
 
-// ===== EMAIL NOTIFICATION TOGGLE =====
+// ===== EMAIL NOTIFICATION TOGGLE ====
 async function toggleEmailNotif(){
-  var cb=document.getElementById('pf-email-notif');if(!cb)return;
-  var en=cb.checked?1:0;
-  var r=await api('profile_email_toggle',{method:'POST',body:{email_notifications:en}});
-  if(r?.success){
-    showToast(en?'Notificacoes por email ativadas':'Notificacoes desativadas');
-    var grid=document.getElementById('email-prefs-grid');
-    if(grid){grid.style.opacity=en?'1':'0.4';grid.style.pointerEvents=en?'auto':'none';}
-    var label=cb.closest('label');
-    if(label){label.style.borderColor=en?'var(--ok)':'var(--bdr)';var badge=label.querySelector('span:last-child');if(badge){badge.textContent=en?'ATIVO':'OFF';badge.style.background=en?'var(--okb)':'var(--bg3)';badge.style.color=en?'var(--ok)':'var(--t3)';}}
-  }
+  var cb = document.getElementById('pf-email-notif');
+  if(!cb) return;
+  var grid = document.getElementById('email-prefs-grid');
+  if(grid){ grid.style.opacity=cb.checked?'1':'.35'; grid.style.pointerEvents=cb.checked?'':'none'; }
+  var r = await api('profile_email_toggle',{method:'POST',body:{email_notifications:cb.checked?1:0}});
+  if(r?.success) showToast(cb.checked ? ' Notificações por email ativadas' : ' Notificações por email desativadas');
+}
+async function toggleEmailPref(_key, el){
+  var on = el.getAttribute('data-on')==='1' ? 0 : 1;
+  el.setAttribute('data-on', on);
+  el.style.background = on ? 'var(--acc)' : 'var(--bg3)';
+  el.style.borderColor = on ? 'var(--acc)' : 'var(--bdr)';
+  var dot = el.querySelector('div');
+  if(dot) dot.style.left = on ? '18px' : '2px';
+  var prefs = {};
+  document.querySelectorAll('[data-pref]').forEach(function(t){ prefs[t.getAttribute('data-pref')] = parseInt(t.getAttribute('data-on')); });
+  await api('email_prefs',{method:'POST',body:{prefs:prefs}});
+}
+async function sendTestEmail(){
+  showToast('Enviando email de teste...');
+  const r=await api('email_test',{method:'POST'});
+  if(r?.sent) showToast('✔ Email de teste enviado para '+r.email);
+  else showToast('Erro ao enviar email de teste');
+}
+async function sendReportEmail(tipo='diario'){
+  const label=tipo==='semanal'?'Semanal':'Diário';
+  showToast('Gerando relatório '+label+'...');
+  const r=await api('email_report',{method:'POST',body:JSON.stringify({tipo})});
+  if(r?.sent) showToast('✔ Relatório '+label+' enviado!');
+  else showToast('Erro ao enviar relatório');
 }
