@@ -268,7 +268,7 @@ const SLA_DAYS={Urgente:1,Alta:3,'Média':5,Baixa:7};
 const COMPLEXITY_DAYS={Simples:1,Moderada:2,Complexa:3,'Muito Complexa':5};
 
 // ===== ANÁLISE IA DE DEMANDAS (Gemini) =====
-const GROQ_KEY='REMOVED_SECRET';
+const GROQ_KEY=window.GROQ_KEY||'';
 function aiSuggestDemand(){
   var title = document.getElementById('d-title')?.value?.trim() || '';
   var desc = document.getElementById('d-desc')?.value?.trim() || '';
